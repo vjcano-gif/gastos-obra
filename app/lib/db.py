@@ -26,51 +26,87 @@ def cliente_admin():
     return create_client(st.secrets["SUPABASE_URL"], key)
 
 
-# El enlace de recuperación de Supabase redirige con los tokens en el
-# fragmento de la URL (#access_token=...&type=recovery), que el navegador
-# nunca envía al servidor. Este script, corriendo dentro del iframe del
-# componente, lee la ubicación de la página PADRE (mismo origen) y si
-# encuentra ese fragmento lo copia a la query string (?access_token=...),
-# que Streamlit sí puede leer del lado de Python con st.query_params.
-_PUENTE_RECOVERY = """
+# Streamlit Community Cloud sirve la app dentro de un iframe con sandbox
+# SIN "allow-top-navigation": ningún script (ni el nuestro) puede redirigir
+# la página real, así que el truco clásico de "copiar el hash a la query
+# string" no funciona ahí (sí funcionaría en Streamlit self-hosted, pero no
+# en Cloud). En vez de pelear con eso, este componente resuelve todo del
+# lado del navegador sin redirigir nada:
+#   1. Lee el fragmento #access_token=...&type=recovery de la URL real
+#      (window.top.location.hash) — leer sí está permitido, solo NAVEGAR no.
+#   2. Si lo encuentra, agranda su propio iframe (window.frameElement) y
+#      dibuja un formulario de "nueva contraseña".
+#   3. Al guardar, llama directo al endpoint de Supabase con ese
+#      access_token — la misma llamada que haría el SDK, sin pasar por
+#      Python ni por Streamlit en ningún momento.
+# Si no hay token de recuperación en la URL, el componente no dibuja nada.
+_RESTABLECER_JS = """
+<div id="reset-box"></div>
 <script>
 (function () {
-  try {
-    var loc = window.parent.location;
-    if (loc.hash && loc.hash.indexOf("access_token") !== -1 && loc.search.indexOf("access_token") === -1) {
-      var desdeHash = new URLSearchParams(loc.hash.substring(1));
-      var query = new URLSearchParams(loc.search);
-      desdeHash.forEach(function (v, k) { query.set(k, v); });
-      loc.href = loc.pathname + "?" + query.toString();
+  var hash = "";
+  try { hash = window.top.location.hash || ""; } catch (e) {}
+  if (hash.indexOf("access_token") === -1 || hash.indexOf("type=recovery") === -1) { return; }
+  var params = new URLSearchParams(hash.substring(1));
+  var accessToken = params.get("access_token");
+  if (!accessToken) { return; }
+
+  if (window.frameElement) {
+    window.frameElement.style.height = "380px";
+    window.frameElement.style.width = "100%";
+  }
+
+  var box = document.getElementById("reset-box");
+  box.innerHTML =
+    '<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:8px auto;padding:20px;border:1px solid #d0d0d0;border-radius:10px;">' +
+    '<h3 style="margin-top:0;">Restablecer contraseña</h3>' +
+    '<input id="pw1" type="password" placeholder="Nueva contraseña" style="width:100%;padding:9px;margin-bottom:8px;box-sizing:border-box;font-size:15px;">' +
+    '<input id="pw2" type="password" placeholder="Repite la contraseña" style="width:100%;padding:9px;margin-bottom:12px;box-sizing:border-box;font-size:15px;">' +
+    '<button id="btn-guardar" style="width:100%;padding:10px;cursor:pointer;font-size:15px;">Guardar nueva contraseña</button>' +
+    '<div id="msg" style="margin-top:10px;font-size:14px;"></div>' +
+    '</div>';
+
+  document.getElementById("btn-guardar").onclick = async function () {
+    var pw1 = document.getElementById("pw1").value;
+    var pw2 = document.getElementById("pw2").value;
+    var msg = document.getElementById("msg");
+    if (pw1.length < 8) { msg.style.color = "crimson"; msg.textContent = "Usa al menos 8 caracteres."; return; }
+    if (pw1 !== pw2) { msg.style.color = "crimson"; msg.textContent = "Las contraseñas no coinciden."; return; }
+    msg.style.color = "#555";
+    msg.textContent = "Guardando...";
+    try {
+      var resp = await fetch("__SUPABASE_URL__/auth/v1/user", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": "__ANON_KEY__",
+          "Authorization": "Bearer " + accessToken
+        },
+        body: JSON.stringify({ password: pw1 })
+      });
+      if (resp.ok) {
+        box.innerHTML = '<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:8px auto;padding:20px;border:1px solid #b7e4c7;border-radius:10px;background:#f0fdf4;color:#166534;">' +
+          '<strong>Contraseña actualizada.</strong><br>Cierra esta pestaña y entra de nuevo con tu nueva contraseña.</div>';
+      } else {
+        var texto = await resp.text();
+        msg.style.color = "crimson";
+        msg.textContent = "El enlace ya expiró o no es válido. Pide uno nuevo desde \\"Olvidé mi contraseña\\".";
+      }
+    } catch (e) {
+      msg.style.color = "crimson";
+      msg.textContent = "Error de conexión. Intenta de nuevo.";
     }
-  } catch (e) {}
+  };
 })();
 </script>
 """
 
 
-def _pantalla_restablecer(access_token: str, refresh_token: str) -> None:
-    st.title("🏗️ Gastos de obra")
-    st.subheader("Restablecer contraseña")
-    with st.form("restablecer"):
-        nueva = st.text_input("Nueva contraseña", type="password")
-        repetir = st.text_input("Repite la nueva contraseña", type="password")
-        if st.form_submit_button("Guardar nueva contraseña", use_container_width=True):
-            if len(nueva) < 8:
-                st.error("Usa al menos 8 caracteres.")
-            elif nueva != repetir:
-                st.error("Las dos contraseñas no coinciden.")
-            else:
-                try:
-                    sb = cliente()
-                    sb.auth.set_session(access_token, refresh_token)
-                    sb.auth.update_user({"password": nueva})
-                    st.session_state["clave_restablecida"] = True
-                    st.query_params.clear()
-                    st.rerun()
-                except Exception:
-                    st.error("El enlace ya expiró o no es válido. Pide uno nuevo desde 'Olvidé mi contraseña'.")
-    st.stop()
+def _puente_restablecer() -> None:
+    js = _RESTABLECER_JS.replace("__SUPABASE_URL__", st.secrets["SUPABASE_URL"]).replace(
+        "__ANON_KEY__", st.secrets["SUPABASE_ANON_KEY"]
+    )
+    st.components.v1.html(js, height=1)
 
 
 def requiere_sesion():
@@ -90,15 +126,8 @@ def requiere_sesion():
         )
         return sb, st.session_state["sb_workspace_id"]
 
-    st.components.v1.html(_PUENTE_RECOVERY, height=0)
-    qp = st.query_params
-    if qp.get("type") == "recovery" and qp.get("access_token"):
-        _pantalla_restablecer(qp["access_token"], qp.get("refresh_token", ""))
-
     st.title("🏗️ Gastos de obra")
-
-    if st.session_state.pop("clave_restablecida", False):
-        st.success("Contraseña actualizada. Ya puedes iniciar sesión con la nueva.")
+    _puente_restablecer()
 
     with st.form("login"):
         correo = st.text_input("Correo")
