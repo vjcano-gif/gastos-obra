@@ -1,4 +1,4 @@
-"""Conexión, sesión y semillas de la app Streamlit (un solo usuario, RLS)."""
+"""Conexión, sesión y semillas de la app Streamlit (workspace compartido, RLS)."""
 from __future__ import annotations
 
 import pandas as pd
@@ -17,15 +17,31 @@ def cliente():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_ANON_KEY"])
 
 
+def cliente_admin():
+    """Cliente con service_role: solo para administrar usuarios (invitar/borrar).
+    Nunca usar esto para leer o escribir datos de negocio (se saltaría RLS)."""
+    key = st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not key:
+        return None
+    return create_client(st.secrets["SUPABASE_URL"], key)
+
+
 def requiere_sesion():
-    """Login del único usuario. Devuelve (supabase, user_id)."""
+    """Login. Devuelve (supabase, workspace_id).
+
+    workspace_id es el id compartido por todo el equipo (mi_empresa() en la
+    base de datos): para el dueño de los datos es su propio id; para un
+    miembro invitado, es el id del dueño al que pertenece. Todo el resto de
+    la app puede seguir usando `uid` tal cual para filtrar/insertar, sin
+    saber si quien está logueado es el dueño o un invitado.
+    """
     if "sb_session" in st.session_state:
         sb = cliente()
         sb.auth.set_session(
             st.session_state["sb_session"]["access_token"],
             st.session_state["sb_session"]["refresh_token"],
         )
-        return sb, st.session_state["sb_user_id"]
+        return sb, st.session_state["sb_workspace_id"]
 
     st.title("🏗️ Gastos de obra")
     with st.form("login"):
@@ -40,10 +56,21 @@ def requiere_sesion():
                     "refresh_token": res.session.refresh_token,
                 }
                 st.session_state["sb_user_id"] = res.user.id
+                st.session_state["sb_workspace_id"] = sb.rpc("mi_empresa").execute().data
                 st.rerun()
             except Exception:
                 st.error("Correo o contraseña incorrectos.")
     st.stop()
+
+
+def usuario_actual_id() -> str:
+    """El id personal de quien inició sesión (no el workspace compartido)."""
+    return st.session_state["sb_user_id"]
+
+
+def es_dueno(workspace_id: str) -> bool:
+    """True si quien está logueado es el dueño del workspace (no un invitado)."""
+    return usuario_actual_id() == workspace_id
 
 
 # ------------------------------------------------------------------ lecturas

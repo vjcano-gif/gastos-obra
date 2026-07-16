@@ -39,5 +39,6 @@ st.markdown(
 - 💳 **Cuentas por pagar** — vencimientos, saldos y registro de abonos.
 - ✉️ **Estado de cuenta** — informe del proyecto listo para enviar al cliente.
 - ⚙️ **Configuración** — proyectos, tipos de gasto, reglas de retención y UVT.
+- 👥 **Usuarios** — invitar o quitar personas del equipo (solo el dueño la ve).
 """
 )
