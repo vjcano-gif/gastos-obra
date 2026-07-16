@@ -44,59 +44,71 @@ _RESTABLECER_JS = """
 <div id="reset-box"></div>
 <script>
 (function () {
-  var hash = "";
-  try { hash = window.top.location.hash || ""; } catch (e) {}
-  if (hash.indexOf("access_token") === -1 || hash.indexOf("type=recovery") === -1) { return; }
-  var params = new URLSearchParams(hash.substring(1));
-  var accessToken = params.get("access_token");
-  if (!accessToken) { return; }
+  function intentar() {
+    var box = document.getElementById("reset-box");
+    if (box.innerHTML) { return true; }
 
-  if (window.frameElement) {
-    window.frameElement.style.height = "380px";
-    window.frameElement.style.width = "100%";
+    var hash = "";
+    try { hash = window.top.location.hash || ""; } catch (e) {}
+    if (hash.indexOf("access_token") === -1 || hash.indexOf("type=recovery") === -1) { return false; }
+    var params = new URLSearchParams(hash.substring(1));
+    var accessToken = params.get("access_token");
+    if (!accessToken) { return false; }
+
+    if (window.frameElement) {
+      window.frameElement.style.height = "380px";
+      window.frameElement.style.width = "100%";
+    }
+
+    box.innerHTML =
+      '<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:8px auto;padding:20px;border:1px solid #d0d0d0;border-radius:10px;">' +
+      '<h3 style="margin-top:0;">Restablecer contraseña</h3>' +
+      '<input id="pw1" type="password" placeholder="Nueva contraseña" style="width:100%;padding:9px;margin-bottom:8px;box-sizing:border-box;font-size:15px;">' +
+      '<input id="pw2" type="password" placeholder="Repite la contraseña" style="width:100%;padding:9px;margin-bottom:12px;box-sizing:border-box;font-size:15px;">' +
+      '<button id="btn-guardar" style="width:100%;padding:10px;cursor:pointer;font-size:15px;">Guardar nueva contraseña</button>' +
+      '<div id="msg" style="margin-top:10px;font-size:14px;"></div>' +
+      '</div>';
+
+    document.getElementById("btn-guardar").onclick = async function () {
+      var pw1 = document.getElementById("pw1").value;
+      var pw2 = document.getElementById("pw2").value;
+      var msg = document.getElementById("msg");
+      if (pw1.length < 8) { msg.style.color = "crimson"; msg.textContent = "Usa al menos 8 caracteres."; return; }
+      if (pw1 !== pw2) { msg.style.color = "crimson"; msg.textContent = "Las contraseñas no coinciden."; return; }
+      msg.style.color = "#555";
+      msg.textContent = "Guardando...";
+      try {
+        var resp = await fetch("__SUPABASE_URL__/auth/v1/user", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": "__ANON_KEY__",
+            "Authorization": "Bearer " + accessToken
+          },
+          body: JSON.stringify({ password: pw1 })
+        });
+        if (resp.ok) {
+          box.innerHTML = '<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:8px auto;padding:20px;border:1px solid #b7e4c7;border-radius:10px;background:#f0fdf4;color:#166534;">' +
+            '<strong>Contraseña actualizada.</strong><br>Cierra esta pestaña y entra de nuevo con tu nueva contraseña.</div>';
+        } else {
+          msg.style.color = "crimson";
+          msg.textContent = "El enlace ya expiró o no es válido. Pide uno nuevo desde \\"Olvidé mi contraseña\\".";
+        }
+      } catch (e) {
+        msg.style.color = "crimson";
+        msg.textContent = "Error de conexión. Intenta de nuevo.";
+      }
+    };
+    return true;
   }
 
-  var box = document.getElementById("reset-box");
-  box.innerHTML =
-    '<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:8px auto;padding:20px;border:1px solid #d0d0d0;border-radius:10px;">' +
-    '<h3 style="margin-top:0;">Restablecer contraseña</h3>' +
-    '<input id="pw1" type="password" placeholder="Nueva contraseña" style="width:100%;padding:9px;margin-bottom:8px;box-sizing:border-box;font-size:15px;">' +
-    '<input id="pw2" type="password" placeholder="Repite la contraseña" style="width:100%;padding:9px;margin-bottom:12px;box-sizing:border-box;font-size:15px;">' +
-    '<button id="btn-guardar" style="width:100%;padding:10px;cursor:pointer;font-size:15px;">Guardar nueva contraseña</button>' +
-    '<div id="msg" style="margin-top:10px;font-size:14px;"></div>' +
-    '</div>';
-
-  document.getElementById("btn-guardar").onclick = async function () {
-    var pw1 = document.getElementById("pw1").value;
-    var pw2 = document.getElementById("pw2").value;
-    var msg = document.getElementById("msg");
-    if (pw1.length < 8) { msg.style.color = "crimson"; msg.textContent = "Usa al menos 8 caracteres."; return; }
-    if (pw1 !== pw2) { msg.style.color = "crimson"; msg.textContent = "Las contraseñas no coinciden."; return; }
-    msg.style.color = "#555";
-    msg.textContent = "Guardando...";
-    try {
-      var resp = await fetch("__SUPABASE_URL__/auth/v1/user", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": "__ANON_KEY__",
-          "Authorization": "Bearer " + accessToken
-        },
-        body: JSON.stringify({ password: pw1 })
-      });
-      if (resp.ok) {
-        box.innerHTML = '<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:8px auto;padding:20px;border:1px solid #b7e4c7;border-radius:10px;background:#f0fdf4;color:#166534;">' +
-          '<strong>Contraseña actualizada.</strong><br>Cierra esta pestaña y entra de nuevo con tu nueva contraseña.</div>';
-      } else {
-        var texto = await resp.text();
-        msg.style.color = "crimson";
-        msg.textContent = "El enlace ya expiró o no es válido. Pide uno nuevo desde \\"Olvidé mi contraseña\\".";
-      }
-    } catch (e) {
-      msg.style.color = "crimson";
-      msg.textContent = "Error de conexión. Intenta de nuevo.";
-    }
-  };
+  // Al crearse el iframe (via srcdoc) la primera pasada puede correr antes
+  // de que el navegador termine de enlazarlo con la página real, y
+  // window.top no resuelve todavía. Reintenta unas pocas veces con backoff
+  // corto en vez de depender de que la primera pasada funcione.
+  [0, 100, 300, 700, 1500].forEach(function (ms) {
+    setTimeout(intentar, ms);
+  });
 })();
 </script>
 """
