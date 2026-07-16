@@ -26,6 +26,53 @@ def cliente_admin():
     return create_client(st.secrets["SUPABASE_URL"], key)
 
 
+# El enlace de recuperación de Supabase redirige con los tokens en el
+# fragmento de la URL (#access_token=...&type=recovery), que el navegador
+# nunca envía al servidor. Este script, corriendo dentro del iframe del
+# componente, lee la ubicación de la página PADRE (mismo origen) y si
+# encuentra ese fragmento lo copia a la query string (?access_token=...),
+# que Streamlit sí puede leer del lado de Python con st.query_params.
+_PUENTE_RECOVERY = """
+<script>
+(function () {
+  try {
+    var loc = window.parent.location;
+    if (loc.hash && loc.hash.indexOf("access_token") !== -1 && loc.search.indexOf("access_token") === -1) {
+      var desdeHash = new URLSearchParams(loc.hash.substring(1));
+      var query = new URLSearchParams(loc.search);
+      desdeHash.forEach(function (v, k) { query.set(k, v); });
+      loc.href = loc.pathname + "?" + query.toString();
+    }
+  } catch (e) {}
+})();
+</script>
+"""
+
+
+def _pantalla_restablecer(access_token: str, refresh_token: str) -> None:
+    st.title("🏗️ Gastos de obra")
+    st.subheader("Restablecer contraseña")
+    with st.form("restablecer"):
+        nueva = st.text_input("Nueva contraseña", type="password")
+        repetir = st.text_input("Repite la nueva contraseña", type="password")
+        if st.form_submit_button("Guardar nueva contraseña", use_container_width=True):
+            if len(nueva) < 8:
+                st.error("Usa al menos 8 caracteres.")
+            elif nueva != repetir:
+                st.error("Las dos contraseñas no coinciden.")
+            else:
+                try:
+                    sb = cliente()
+                    sb.auth.set_session(access_token, refresh_token)
+                    sb.auth.update_user({"password": nueva})
+                    st.session_state["clave_restablecida"] = True
+                    st.query_params.clear()
+                    st.rerun()
+                except Exception:
+                    st.error("El enlace ya expiró o no es válido. Pide uno nuevo desde 'Olvidé mi contraseña'.")
+    st.stop()
+
+
 def requiere_sesion():
     """Login. Devuelve (supabase, workspace_id).
 
@@ -43,7 +90,16 @@ def requiere_sesion():
         )
         return sb, st.session_state["sb_workspace_id"]
 
+    st.components.v1.html(_PUENTE_RECOVERY, height=0)
+    qp = st.query_params
+    if qp.get("type") == "recovery" and qp.get("access_token"):
+        _pantalla_restablecer(qp["access_token"], qp.get("refresh_token", ""))
+
     st.title("🏗️ Gastos de obra")
+
+    if st.session_state.pop("clave_restablecida", False):
+        st.success("Contraseña actualizada. Ya puedes iniciar sesión con la nueva.")
+
     with st.form("login"):
         correo = st.text_input("Correo")
         clave = st.text_input("Contraseña", type="password")
@@ -60,6 +116,16 @@ def requiere_sesion():
                 st.rerun()
             except Exception:
                 st.error("Correo o contraseña incorrectos.")
+
+    with st.expander("¿Olvidaste tu contraseña?"):
+        correo_recuperar = st.text_input("Tu correo", key="correo_recuperar")
+        if st.button("Enviar enlace de recuperación"):
+            try:
+                cliente().auth.reset_password_for_email(correo_recuperar)
+            except Exception:
+                pass
+            st.info("Si ese correo tiene una cuenta, te llegará un enlace para poner una contraseña nueva.")
+
     st.stop()
 
 
