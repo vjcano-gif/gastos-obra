@@ -14,10 +14,15 @@ workspace, que puede invitar a su equipo a compartir los mismos datos.
 
 ## Montaje (una sola vez por cliente)
 
-1. **Supabase**: crear proyecto nuevo → SQL Editor → pegar
-   `supabase/migrations/001_esquema.sql` → Run, y luego
-   `supabase/migrations/002_miembros.sql` → Run (agrega el soporte multiusuario
-   y corrige los permisos del bucket de documentos).
+1. **Supabase**: crear proyecto nuevo. **Si al crearlo dejas activado
+   "Automatically expose new tables", puedes saltarte el paso 003** (ese
+   toggle es justamente el que aplica los GRANT automáticamente). Si lo
+   desactivaste (o no estás seguro), corre las tres migraciones en orden en
+   el SQL Editor: `001_esquema.sql` → Run, `002_miembros.sql` → Run (agrega
+   el soporte multiusuario y corrige los permisos del bucket de documentos),
+   `003_grants.sql` → Run (le da permiso de tabla al rol `authenticated`;
+   sin esto toda la app falla con "permission denied" aunque las políticas
+   de RLS estén perfectas).
    En Authentication → Users → crear el usuario dueño (correo + contraseña).
    Copiar: URL del proyecto, `anon key`, `service_role key` y el UUID del usuario.
 2. **Google Cloud**: reutilizar el proyecto OAuth existente; agregar el correo del
