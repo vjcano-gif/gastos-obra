@@ -1,0 +1,22 @@
+name: Validación
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Compilar todos los módulos
+        run: |
+          python -m compileall -q worker app
+          python -c "from worker import config, dian_xml, retenciones, storage, pdf_evidencia, clasificador, sync"
+      - name: Prueba unitaria de retenciones
+        run: python -m pytest tests/ -q || python tests/test_retenciones.py

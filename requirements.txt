@@ -1,0 +1,17 @@
+streamlit>=1.36
+supabase>=2.5
+pandas>=2.2
+plotly>=5.22
+pydantic>=2.7
+google-api-python-client>=2.130
+google-auth>=2.30
+google-auth-oauthlib>=1.2
+xmltodict>=0.13
+lxml>=5.2
+beautifulsoup4>=4.12
+pymupdf>=1.24
+pypdf>=4.2
+fpdf2>=2.7
+truststore>=0.9
+requests>=2.32
+openai>=1.35
