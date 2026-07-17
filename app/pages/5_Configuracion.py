@@ -9,8 +9,8 @@ sb, uid = db.requiere_sesion()
 
 st.title("⚙️ Configuración")
 
-tab_p, tab_t, tab_r, tab_u = st.tabs(
-    ["🏗️ Proyectos", "🏷️ Tipos de gasto", "🧾 Reglas de retención", "📏 UVT"]
+tab_p, tab_t, tab_c, tab_r, tab_u = st.tabs(
+    ["🏗️ Proyectos", "🏷️ Tipos de gasto", "📐 Capítulos, actividades y residentes", "🧾 Reglas de retención", "📏 UVT"]
 )
 
 with tab_p:
@@ -57,6 +57,57 @@ with tab_t:
             sb.table("tipos_gasto").insert(
                 {"user_id": uid, "nombre": n, "capitulo": cap or None, "concepto_retencion": conc}
             ).execute()
+            st.rerun()
+
+with tab_c:
+    st.caption(
+        "Capítulo = categoría grande del presupuesto de obra (Estructura, Acabados...). "
+        "Actividad = tarea específica dentro de un capítulo. Residente = persona responsable "
+        "en obra. Los tres se asignan a cada factura desde Revisión."
+    )
+
+    st.subheader("Capítulos")
+    cap = db.capitulos(sb, uid)
+    if not cap.empty:
+        st.dataframe(cap[["nombre", "orden"]], use_container_width=True)
+    with st.form("nuevo_capitulo"):
+        c1, c2 = st.columns([3, 1])
+        n_cap = c1.text_input("Nuevo capítulo")
+        orden_cap = c2.number_input("Orden", min_value=0, step=1, value=len(cap))
+        if st.form_submit_button("Agregar capítulo") and n_cap:
+            sb.table("capitulos").insert({"user_id": uid, "nombre": n_cap, "orden": int(orden_cap)}).execute()
+            st.rerun()
+
+    st.divider()
+    st.subheader("Actividades")
+    act = db.actividades(sb, uid)
+    if not act.empty:
+        st.dataframe(
+            act.assign(capitulo=act["capitulo_nombre"].fillna("— sin capítulo —"))[["capitulo", "nombre"]],
+            use_container_width=True,
+        )
+    opciones_cap_form = {"— sin capítulo —": None} | (
+        {r["nombre"]: r["id"] for _, r in cap.iterrows()} if not cap.empty else {}
+    )
+    with st.form("nueva_actividad"):
+        c1, c2 = st.columns(2)
+        cap_sel = c1.selectbox("Capítulo", list(opciones_cap_form))
+        n_act = c2.text_input("Nueva actividad")
+        if st.form_submit_button("Agregar actividad") and n_act:
+            sb.table("actividades").insert(
+                {"user_id": uid, "capitulo_id": opciones_cap_form[cap_sel], "nombre": n_act}
+            ).execute()
+            st.rerun()
+
+    st.divider()
+    st.subheader("Residentes")
+    res = db.residentes(sb, uid)
+    if not res.empty:
+        st.dataframe(res[["nombre", "activo"]], use_container_width=True)
+    with st.form("nuevo_residente"):
+        n_res = st.text_input("Nombre del residente")
+        if st.form_submit_button("Agregar residente") and n_res:
+            sb.table("residentes").insert({"user_id": uid, "nombre": n_res}).execute()
             st.rerun()
 
 with tab_r:

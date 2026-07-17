@@ -190,6 +190,33 @@ def tipos_gasto(sb, uid) -> pd.DataFrame:
     return df(sb.table("tipos_gasto").select("*").eq("user_id", uid).order("nombre").execute())
 
 
+def capitulos(sb, uid) -> pd.DataFrame:
+    return df(sb.table("capitulos").select("*").eq("user_id", uid).order("orden").order("nombre").execute())
+
+
+def actividades(sb, uid) -> pd.DataFrame:
+    """Trae también el nombre del capítulo al que pertenece cada actividad,
+    para poder mostrar "Estructura › Vaciado de placa" en los selectores."""
+    data = df(
+        sb.table("actividades")
+        .select("*, capitulos(nombre)")
+        .eq("user_id", uid)
+        .order("nombre")
+        .execute()
+    )
+    if not data.empty:
+        data["capitulo_nombre"] = data["capitulos"].apply(
+            lambda c: c["nombre"] if isinstance(c, dict) else None
+        )
+    return data
+
+
+def residentes(sb, uid) -> pd.DataFrame:
+    return (
+        df(sb.table("residentes").select("*").eq("user_id", uid).order("nombre").execute())
+    )
+
+
 def facturas(sb, uid, **filtros) -> pd.DataFrame:
     q = sb.table("facturas").select("*").eq("user_id", uid)
     for k, v in filtros.items():
@@ -238,6 +265,21 @@ REGLAS_EJEMPLO = [
     ("reteiva", "compras", 15.0, 0),
 ]
 
+CAPITULOS_OBRA = [
+    "Preliminares",
+    "Cimentación",
+    "Estructura",
+    "Mampostería",
+    "Acabados",
+    "Instalaciones eléctricas",
+    "Instalaciones hidrosanitarias",
+    "Equipos y herramienta",
+    "Transporte y acarreos",
+    "Mano de obra",
+    "Honorarios y diseño",
+    "Administración",
+]
+
 
 def sembrar_si_vacio(sb, uid) -> None:
     if sb.table("tipos_gasto").select("id").eq("user_id", uid).limit(1).execute().data:
@@ -266,6 +308,14 @@ def sembrar_si_vacio(sb, uid) -> None:
         sb.table("uvt").upsert({"anio": 2025, "valor": 49799}).execute()
     except Exception:
         pass  # la tabla uvt se administra con service_role si RLS lo exige
+
+
+def sembrar_capitulos_si_vacio(sb, uid) -> None:
+    if sb.table("capitulos").select("id").eq("user_id", uid).limit(1).execute().data:
+        return
+    sb.table("capitulos").insert(
+        [{"user_id": uid, "nombre": n, "orden": i} for i, n in enumerate(CAPITULOS_OBRA)]
+    ).execute()
 
 
 def cop(v) -> str:

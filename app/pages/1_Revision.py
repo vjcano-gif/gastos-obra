@@ -9,8 +9,21 @@ st.title("📋 Revisión y asignación")
 
 pr = db.proyectos(sb, uid)
 tg = db.tipos_gasto(sb, uid)
+cap = db.capitulos(sb, uid)
+act = db.actividades(sb, uid)
+res = db.residentes(sb, uid)
 opciones_pr = {"— sin proyecto —": None} | ({r["nombre"]: r["id"] for _, r in pr.iterrows()} if not pr.empty else {})
 opciones_tg = {"— sin tipo —": None} | ({r["nombre"]: r["id"] for _, r in tg.iterrows()} if not tg.empty else {})
+opciones_cap = {"— sin capítulo —": None} | ({r["nombre"]: r["id"] for _, r in cap.iterrows()} if not cap.empty else {})
+opciones_act = {"— sin actividad —": None} | (
+    {
+        (f"{r['capitulo_nombre']} › {r['nombre']}" if r.get("capitulo_nombre") else r["nombre"]): r["id"]
+        for _, r in act.iterrows()
+    }
+    if not act.empty
+    else {}
+)
+opciones_res = {"— sin residente —": None} | ({r["nombre"]: r["id"] for _, r in res.iterrows()} if not res.empty else {})
 
 filtro = st.radio(
     "Mostrar", ["Por revisar", "Posibles duplicados", "Todas"], horizontal=True
@@ -61,6 +74,9 @@ else:
                 with st.form(f"asig_{f['id']}"):
                     proy = st.selectbox("Proyecto", list(opciones_pr), key=f"p{f['id']}")
                     tipo = st.selectbox("Tipo de gasto", list(opciones_tg), key=f"t{f['id']}")
+                    capitulo = st.selectbox("Capítulo", list(opciones_cap), key=f"cap{f['id']}")
+                    actividad = st.selectbox("Actividad", list(opciones_act), key=f"act{f['id']}")
+                    residente = st.selectbox("Residente", list(opciones_res), key=f"res{f['id']}")
                     metodo = st.selectbox("Método de pago", ["", "TC", "TD", "contado", "transferencia"])
                     pagador = st.selectbox("Quién paga", ["", "empresa", "cliente"])
                     concepto = st.text_input("Concepto", value=f.get("concepto") or "")
@@ -71,6 +87,9 @@ else:
                         cambios = {
                             "proyecto_id": opciones_pr[proy],
                             "tipo_gasto_id": opciones_tg[tipo],
+                            "capitulo_id": opciones_cap[capitulo],
+                            "actividad_id": opciones_act[actividad],
+                            "residente_id": opciones_res[residente],
                             "metodo_pago": metodo or None,
                             "pagador": pagador or None,
                             "concepto": concepto or None,

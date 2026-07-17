@@ -6,6 +6,7 @@ st.set_page_config(page_title="Gastos de obra", page_icon="🏗️", layout="wid
 
 sb, uid = db.requiere_sesion()
 db.sembrar_si_vacio(sb, uid)
+db.sembrar_capitulos_si_vacio(sb, uid)
 
 st.title("🏗️ Control de gastos e ingresos por proyecto")
 
