@@ -1,6 +1,16 @@
+import plotly.graph_objects as go
 import streamlit as st
 
 from lib import db
+
+ORDEN_ESTADOS = ["extraida", "asignada", "aprobada", "pagada", "anulada"]
+ETIQUETAS_ESTADO = {
+    "extraida": "Sin revisar",
+    "asignada": "Asignada (falta aprobar)",
+    "aprobada": "Aprobada",
+    "pagada": "Pagada",
+    "anulada": "Anulada",
+}
 
 st.set_page_config(page_title="Revisión", page_icon="📋", layout="wide")
 sb, uid = db.requiere_sesion()
@@ -25,14 +35,55 @@ opciones_act = {"— sin actividad —": None} | (
 )
 opciones_res = {"— sin residente —": None} | ({r["nombre"]: r["id"] for _, r in res.iterrows()} if not res.empty else {})
 
+fx = db.facturas(sb, uid)
+
+if fx.empty:
+    st.info("No hay documentos todavía.")
+else:
+    st.subheader("📊 Estado de la revisión")
+    resumen = (
+        fx.assign(monto_abs=fx["monto_efectivo"].abs())
+        .groupby("estado")
+        .agg(cantidad=("id", "count"), monto=("monto_abs", "sum"))
+        .reindex(ORDEN_ESTADOS)
+        .fillna(0)
+    )
+    total_cant = resumen["cantidad"].sum()
+
+    cols_resumen = st.columns(len(ORDEN_ESTADOS))
+    for col, estado in zip(cols_resumen, ORDEN_ESTADOS):
+        cant = int(resumen.loc[estado, "cantidad"])
+        monto = resumen.loc[estado, "monto"]
+        pct = (cant / total_cant * 100) if total_cant else 0
+        col.metric(ETIQUETAS_ESTADO[estado], f"{cant} ({pct:.0f}%)", db.cop(monto))
+
+    cg1, cg2 = st.columns(2)
+    with cg1:
+        fig_cant = go.Figure(
+            go.Bar(
+                x=[ETIQUETAS_ESTADO[e] for e in ORDEN_ESTADOS],
+                y=resumen["cantidad"],
+                marker_color="#D85A30",
+                text=resumen["cantidad"].astype(int),
+                texttemplate="%{text}",
+            )
+        )
+        fig_cant.update_layout(title="Documentos por estado (cantidad)", height=320, margin=dict(t=40))
+        st.plotly_chart(fig_cant, use_container_width=True)
+    with cg2:
+        fig_monto = go.Figure(
+            go.Pie(labels=[ETIQUETAS_ESTADO[e] for e in ORDEN_ESTADOS], values=resumen["monto"], hole=0.5)
+        )
+        fig_monto.update_layout(title="Monto por estado (%)", height=320, margin=dict(t=40))
+        st.plotly_chart(fig_monto, use_container_width=True)
+
+    st.divider()
+
 filtro = st.radio(
     "Mostrar", ["Por revisar", "Posibles duplicados", "Todas"], horizontal=True
 )
 
-fx = db.facturas(sb, uid)
-if fx.empty:
-    st.info("No hay documentos todavía.")
-else:
+if not fx.empty:
     if filtro == "Por revisar":
         fx = fx[fx["estado"].isin(["extraida", "asignada"])]
     elif filtro == "Posibles duplicados":
