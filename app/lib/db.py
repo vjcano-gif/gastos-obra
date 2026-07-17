@@ -118,7 +118,7 @@ def _puente_restablecer() -> None:
     js = _RESTABLECER_JS.replace("__SUPABASE_URL__", st.secrets["SUPABASE_URL"]).replace(
         "__ANON_KEY__", st.secrets["SUPABASE_ANON_KEY"]
     )
-    st.components.v1.html(js, height=1)
+    st.iframe(js, height=1)
 
 
 def requiere_sesion():

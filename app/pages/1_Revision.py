@@ -69,7 +69,7 @@ else:
                         st.markdown(f"📄 [{d.get('nombre_renombrado') or d.get('nombre_original')}]({url})")
                         if str(d.get("mime", "")).endswith("pdf"):
                             with st.popover("👁 Previsualizar"):
-                                st.components.v1.iframe(url, height=500)
+                                st.iframe(url, height=500)
             with c2:
                 with st.form(f"asig_{f['id']}"):
                     proy = st.selectbox("Proyecto", list(opciones_pr), key=f"p{f['id']}")
