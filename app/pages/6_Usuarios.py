@@ -23,7 +23,7 @@ if admin is None:
     st.stop()
 
 st.caption(
-    "Todas las personas que invites aquí ven y editan exactamente los mismos "
+    "Todas las personas que agregues aquí ven y editan exactamente los mismos "
     "proyectos, facturas e ingresos que tú — es un solo equipo, un solo workspace."
 )
 
@@ -31,7 +31,7 @@ miembros = db.df(
     sb.table("miembros").select("*").eq("owner_user_id", uid).order("created_at").execute()
 )
 if miembros.empty:
-    st.caption("Todavía no has invitado a nadie.")
+    st.caption("Todavía no has agregado a nadie.")
 else:
     for _, m in miembros.iterrows():
         c1, c2, c3 = st.columns([3, 2, 1])
@@ -42,37 +42,39 @@ else:
             st.rerun()
 
 st.divider()
-st.subheader("➕ Invitar a alguien")
-with st.form("invitar"):
-    email = st.text_input("Correo de la persona a invitar")
+st.subheader("➕ Agregar a alguien")
+st.caption(
+    "Antes de agregarlo aquí, crea su cuenta en Supabase → Authentication → "
+    "Users → **Add user → Create new user** (correo y contraseña que tú le "
+    "entregas directamente — deja marcado \"Auto confirm user\", así no se "
+    "envía ningún correo). Después vinculas ese mismo correo aquí abajo."
+)
+with st.form("agregar"):
+    email = st.text_input("Correo de la persona (el mismo que usaste en Supabase)")
     rol = st.selectbox("Rol", ["editor", "lector"], format_func=lambda r: "Editor" if r == "editor" else "Solo lectura")
-    if st.form_submit_button("Enviar invitación"):
+    if st.form_submit_button("Vincular a mi equipo"):
         email = email.strip().lower()
         if not email:
             st.warning("Escribe un correo.")
         elif not miembros.empty and email in miembros["email"].values:
-            st.warning("Esa persona ya está invitada.")
+            st.warning("Esa persona ya está en tu equipo.")
         else:
-            try:
-                res = admin.auth.admin.invite_user_by_email(email)
-                nuevo_id = res.user.id
+            usuarios = admin.auth.admin.list_users(page=1, per_page=200)
+            encontrado = next((u for u in usuarios if (u.email or "").lower() == email), None)
+            if encontrado is None:
+                st.error(
+                    "No existe ninguna cuenta con ese correo todavía. Créala primero en "
+                    "Supabase → Authentication → Users → Add user → Create new user, "
+                    "y vuelve a intentarlo."
+                )
+            else:
                 sb.table("miembros").insert(
                     {
                         "owner_user_id": uid,
-                        "member_user_id": nuevo_id,
+                        "member_user_id": encontrado.id,
                         "email": email,
                         "rol": rol,
                     }
                 ).execute()
-                st.success(f"Invitación enviada a {email}. Debe revisar su correo para poner su contraseña.")
+                st.success(f"{email} ya puede entrar con su correo y contraseña, y ve tus mismos datos.")
                 st.rerun()
-            except Exception as e:
-                mensaje = str(e)
-                if "already been registered" in mensaje.lower():
-                    st.error(
-                        "Ese correo ya tiene una cuenta en el sistema. Si ya existe, "
-                        "pide que te confirme su correo exacto e inténtalo de nuevo — "
-                        "si el problema persiste, contáctame para vincularlo manualmente."
-                    )
-                else:
-                    st.error(f"No se pudo invitar: {mensaje[:200]}")

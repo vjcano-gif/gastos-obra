@@ -158,14 +158,11 @@ def requiere_sesion():
             except Exception:
                 st.error("Correo o contraseña incorrectos.")
 
-    with st.expander("¿Olvidaste tu contraseña?"):
-        correo_recuperar = st.text_input("Tu correo", key="correo_recuperar")
-        if st.button("Enviar enlace de recuperación"):
-            try:
-                cliente().auth.reset_password_for_email(correo_recuperar)
-            except Exception:
-                pass
-            st.info("Si ese correo tiene una cuenta, te llegará un enlace para poner una contraseña nueva.")
+    st.caption(
+        "¿Olvidaste tu contraseña? Escríbele a "
+        f"**{st.secrets.get('ADMIN_CONTACTO', 'quien administra esta cuenta')}** "
+        "para que te la restablezca."
+    )
 
     st.stop()
 

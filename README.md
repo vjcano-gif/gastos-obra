@@ -39,16 +39,25 @@ workspace, que puede invitar a su equipo a compartir los mismos datos.
    SUPABASE_URL = "https://xxxx.supabase.co"
    SUPABASE_ANON_KEY = "..."
    SUPABASE_SERVICE_ROLE_KEY = "..."   # necesaria para que el dueño invite usuarios
-   RESEND_API_KEY = ""   # para enviar estados de cuenta (opcional)
+   RESEND_API_KEY = ""   # para enviar estados de cuenta (opcional, necesita dominio verificado)
    EMAIL_FROM = ""       # remitente verificado en Resend (opcional)
+   ADMIN_CONTACTO = "Victor - WhatsApp 3xx xxx xxxx"   # se muestra en "olvidé mi contraseña"
    ```
 5. **Barrido inicial**: GitHub → Actions → "Sincronizar buzón" → Run workflow →
    `backfill_desde = 2026-01-01` (o la fecha que se acuerde).
 6. Entrar a la app, crear los **proyectos** en Configuración y validar en
    Configuración → Reglas de retención las tarifas con el contador del cliente.
    Registrar el valor de la **UVT** del año en curso.
-7. Desde **Usuarios**, el dueño invita al resto del equipo por correo; cada
-   invitado define su propia contraseña y ve los mismos datos.
+7. **Usuarios del equipo**: el correo incluido de Supabase tiene un límite muy
+   bajo (~2/hora, igual en el plan gratis y en Pro — no se arregla pagando,
+   solo conectando un SMTP propio como Resend). Mientras no haya un dominio
+   verificado, el dueño crea cada usuario manualmente en Supabase →
+   Authentication → Users → Add user → **Create new user** (correo +
+   contraseña que él mismo define y le entrega a la persona, con "Auto
+   confirm user" activado — no se envía ningún correo). Después, en la
+   página **Usuarios** de la app, el dueño lo vincula a su mismo workspace.
+   Si alguien olvida su contraseña, se la restablece el dueño desde ese
+   mismo panel de Supabase.
 
 ## Reglas de negocio clave
 
