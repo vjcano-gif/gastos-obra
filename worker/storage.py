@@ -18,11 +18,15 @@ class Store:
 
     # ------------------------------------------------------------- dedup
     def correo_procesado(self, gmail_id: str) -> bool:
+        """True si el correo ya se proceso con exito. Los que fallaron con
+        error (ej. cortes de red transitorios) no cuentan como procesados,
+        para que la siguiente corrida los reintente."""
         r = (
             self.sb.table("correos_procesados")
             .select("id")
             .eq("user_id", self.uid)
             .eq("gmail_message_id", gmail_id)
+            .neq("resultado", "error")
             .limit(1)
             .execute()
         )
