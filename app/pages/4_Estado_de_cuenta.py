@@ -1,3 +1,6 @@
+from datetime import date, timedelta
+
+import pandas as pd
 import requests as rq
 import streamlit as st
 
@@ -17,7 +20,35 @@ nombre = st.selectbox("Proyecto", pr["nombre"].tolist())
 p = pr[pr["nombre"] == nombre].iloc[0]
 
 fx = db.facturas(sb, uid, proyecto_id=p["id"])
-fx = fx[fx["estado"] != "anulada"] if not fx.empty else fx
+
+# Al cliente solo se le informa lo REVISADO Y APROBADO: antes entraba
+# cualquier cosa no anulada, incluyendo documentos recién extraídos que
+# aún nadie había verificado.
+solo_aprobadas = st.checkbox(
+    "Incluir solo facturas aprobadas o pagadas (recomendado)", value=True
+)
+if not fx.empty:
+    fx = fx[fx["estado"].isin(["aprobada", "pagada"])] if solo_aprobadas else fx[fx["estado"] != "anulada"]
+
+if not fx.empty:
+    fx["_fecha_dt"] = pd.to_datetime(fx["fecha_emision"], errors="coerce")
+    validas = fx["_fecha_dt"].dropna()
+    if not validas.empty:
+        c_d, c_h = st.columns(2)
+        desde = c_d.date_input("Desde", value=validas.min().date(), key="ec_desde")
+        hasta = c_h.date_input("Hasta", value=validas.max().date(), key="ec_hasta")
+        fx = fx[
+            fx["_fecha_dt"].isna()
+            | ((fx["_fecha_dt"].dt.date >= desde) & (fx["_fecha_dt"].dt.date <= hasta))
+        ]
+        periodo = f"{desde} a {hasta}"
+    else:
+        periodo = "todo el histórico"
+else:
+    periodo = "todo el histórico"
+
+if fx.empty:
+    st.warning("No hay movimientos aprobados en ese rango: no hay nada que enviar.")
 
 gastos = fx[fx["sentido"] == "gasto"] if not fx.empty else fx
 ingresos = fx[fx["sentido"] == "ingreso"] if not fx.empty else fx
@@ -32,6 +63,7 @@ c3.metric("Saldo por cobrar", db.cop(tot_g - tot_i))
 cuerpo = [
     f"Estado de cuenta — {p['nombre']}",
     f"Cliente: {p.get('cliente_nombre') or ''}",
+    f"Período: {periodo}",
     "",
     f"Total invertido en el proyecto a la fecha: {db.cop(tot_g)}",
     f"Abonos recibidos: {db.cop(tot_i)}",
@@ -52,7 +84,27 @@ st.subheader("Vista previa")
 st.code(texto, language=None)
 
 destino = st.text_input("Enviar a", value=p.get("cliente_email") or "")
-if st.button("📨 Enviar estado de cuenta", type="primary", disabled=not destino):
+
+# Aviso de posible envío duplicado: mandar dos estados de cuenta seguidos
+# al cliente se ve mal y no hay forma de "des-enviarlo".
+recientes = db.df(
+    sb.table("envios_estado_cuenta")
+    .select("enviado_en, enviado_a")
+    .eq("proyecto_id", p["id"])
+    .gte("enviado_en", (date.today() - timedelta(days=7)).isoformat())
+    .order("enviado_en", desc=True)
+    .limit(1)
+    .execute()
+)
+if not recientes.empty:
+    ultimo = recientes.iloc[0]
+    st.warning(
+        f"⚠️ Ya se envió un estado de cuenta de este proyecto el "
+        f"{str(ultimo['enviado_en'])[:16]} a {ultimo['enviado_a']}. "
+        "Verifica que no sea un envío repetido."
+    )
+
+if st.button("📨 Enviar estado de cuenta", type="primary", disabled=not destino or fx.empty):
     api_key = st.secrets.get("RESEND_API_KEY", "")
     remitente = st.secrets.get("EMAIL_FROM", "")
     if not api_key or not remitente:

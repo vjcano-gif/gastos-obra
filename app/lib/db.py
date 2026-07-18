@@ -183,6 +183,30 @@ def es_dueno(workspace_id: str) -> bool:
     return usuario_actual_id() == workspace_id
 
 
+def mi_rol(sb, workspace_id: str) -> str:
+    """'dueno' | 'editor' | 'lector' | 'aprobador'. Se cachea en la sesión."""
+    if es_dueno(workspace_id):
+        return "dueno"
+    if "sb_rol" not in st.session_state:
+        r = (
+            sb.table("miembros")
+            .select("rol")
+            .eq("member_user_id", usuario_actual_id())
+            .limit(1)
+            .execute()
+        )
+        st.session_state["sb_rol"] = (r.data[0]["rol"] if r.data else "editor")
+    return st.session_state["sb_rol"]
+
+
+def puede_editar(sb, workspace_id: str) -> bool:
+    return mi_rol(sb, workspace_id) in ("dueno", "editor")
+
+
+def puede_aprobar(sb, workspace_id: str) -> bool:
+    return mi_rol(sb, workspace_id) in ("dueno", "aprobador")
+
+
 # ------------------------------------------------------------------ lecturas
 def df(res) -> pd.DataFrame:
     return pd.DataFrame(res.data or [])
@@ -257,6 +281,47 @@ def todos_los_items(sb, uid) -> pd.DataFrame:
         if len(lote) < tam_pagina:
             break
         inicio += tam_pagina
+    return pd.DataFrame(filas)
+
+
+def asignaciones(sb, uid, factura_id: str | None = None) -> pd.DataFrame:
+    q = sb.table("asignacion_costos").select("*").eq("user_id", uid)
+    if factura_id:
+        q = q.eq("factura_id", factura_id)
+    return df(q.order("id").execute())
+
+
+def aplicar_asignaciones(detalle: pd.DataFrame, asig: pd.DataFrame) -> pd.DataFrame:
+    """Reemplaza las filas que tienen reparto multiproyecto por una fila
+    por proyecto asignado. Las que no tienen reparto quedan igual (usan
+    proyecto_id de la factura). Devuelve el detalle listo para reportes."""
+    if detalle.empty or asig is None or asig.empty:
+        return detalle
+
+    # el reparto puede ser por artículo (factura_item_id) o por factura completa
+    por_item = {a["factura_item_id"] for _, a in asig.iterrows() if a.get("factura_item_id")}
+    por_factura = {
+        a["factura_id"] for _, a in asig.iterrows() if not a.get("factura_item_id")
+    }
+
+    filas = []
+    for _, r in detalle.iterrows():
+        item_id, factura_id = r.get("item_id"), r.get("factura_id")
+        reemplazada = (item_id in por_item) or (item_id is None and factura_id in por_factura)
+        if not reemplazada:
+            filas.append(r.to_dict())
+            continue
+        if item_id in por_item:
+            aplican = asig[asig["factura_item_id"] == item_id]
+        else:
+            aplican = asig[(asig["factura_id"] == factura_id) & (asig["factura_item_id"].isna())]
+        signo = -1 if (r.get("valor") or 0) < 0 else 1
+        for _, a in aplican.iterrows():
+            nueva = r.to_dict()
+            nueva["proyecto_id"] = a["proyecto_id"]
+            nueva["valor"] = signo * abs(float(a["monto"] or 0))
+            nueva["repartida"] = True
+            filas.append(nueva)
     return pd.DataFrame(filas)
 
 

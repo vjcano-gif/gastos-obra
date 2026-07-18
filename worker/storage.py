@@ -65,6 +65,54 @@ class Store:
         )
         return bool(r.data)
 
+    def factura_por_hash(self, h: str) -> dict | None:
+        r = (
+            self.sb.table("facturas")
+            .select("*")
+            .eq("user_id", self.uid)
+            .eq("hash_adjunto", h)
+            .limit(1)
+            .execute()
+        )
+        return r.data[0] if r.data else None
+
+    def factura_por_cufe(self, cufe: str) -> dict | None:
+        r = (
+            self.sb.table("facturas")
+            .select("*")
+            .eq("user_id", self.uid)
+            .eq("cufe", cufe)
+            .limit(1)
+            .execute()
+        )
+        return r.data[0] if r.data else None
+
+    def mimes_de_factura(self, factura_id: str) -> set[str]:
+        r = (
+            self.sb.table("documentos")
+            .select("mime")
+            .eq("factura_id", factura_id)
+            .execute()
+        )
+        return {d.get("mime") for d in (r.data or [])}
+
+    def tiene_items(self, factura_id: str) -> bool:
+        r = (
+            self.sb.table("factura_items")
+            .select("id")
+            .eq("factura_id", factura_id)
+            .limit(1)
+            .execute()
+        )
+        return bool(r.data)
+
+    def insertar_items(self, factura_id: str, items: list[dict]) -> None:
+        if not items:
+            return
+        self.sb.table("factura_items").insert(
+            [{**it, "user_id": self.uid, "factura_id": factura_id} for it in items]
+        ).execute()
+
     def buscar_ingreso_parecido(self, monto: float, fecha: str) -> str | None:
         """Heurística para consignaciones: mismo monto y fecha ya registrados."""
         r = (

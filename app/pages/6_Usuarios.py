@@ -36,7 +36,11 @@ else:
     for _, m in miembros.iterrows():
         c1, c2, c3 = st.columns([3, 2, 1])
         c1.write(m["email"])
-        c2.write("Editor" if m["rol"] == "editor" else "Solo lectura")
+        c2.write(
+            {"editor": "Editor", "lector": "Solo lectura", "aprobador": "Aprobador"}.get(
+                m["rol"], m["rol"]
+            )
+        )
         if c3.button("Quitar", key=f"quitar_{m['id']}"):
             sb.table("miembros").delete().eq("id", m["id"]).execute()
             st.rerun()
@@ -51,7 +55,12 @@ st.caption(
 )
 with st.form("agregar"):
     email = st.text_input("Correo de la persona (el mismo que usaste en Supabase)")
-    rol = st.selectbox("Rol", ["editor", "lector"], format_func=lambda r: "Editor" if r == "editor" else "Solo lectura")
+    ETIQUETA_ROL = {
+        "editor": "Editor — clasifica y edita, no aprueba",
+        "lector": "Solo lectura — ve todo, no modifica nada",
+        "aprobador": "Aprobador — además puede aprobar y marcar pagadas",
+    }
+    rol = st.selectbox("Rol", list(ETIQUETA_ROL), format_func=lambda r: ETIQUETA_ROL[r])
     if st.form_submit_button("Vincular a mi equipo"):
         email = email.strip().lower()
         if not email:

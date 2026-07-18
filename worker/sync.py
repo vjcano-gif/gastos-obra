@@ -27,8 +27,6 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
     for nombre, contenido in msg["adjuntos"]:
         ext = nombre.lower().rsplit(".", 1)[-1] if "." in nombre else ""
         h = hashlib.sha256(contenido).hexdigest()
-        if store.hash_existe(h):
-            continue
 
         xmls = []
         if ext == "zip":
@@ -39,6 +37,14 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
         elif ext == "xml":
             xmls = [contenido]
 
+        # Dedup por hash del archivo: si ya se proceso, no se re-inserta,
+        # pero SI se repara lo que haya quedado incompleto por un fallo
+        # parcial (factura sin documento o sin items). Antes se hacia
+        # `continue` a ciegas y la factura quedaba mutilada para siempre.
+        if store.hash_existe(h):
+            _reparar_incompletas(store, h, contenido, xmls, ext, nombre)
+            continue
+
         fids_de_este_zip = []
         for xml in xmls:
             datos = dian_xml.parsear_factura(xml)
@@ -46,8 +52,11 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
                 continue
             f = datos["factura"]
             if f.get("cufe") and store.cufe_existe(f["cufe"]):
-                continue  # capa CUFE
+                # misma logica de reparacion para la capa CUFE
+                _reparar_por_cufe(store, f["cufe"], xml, contenido, ext, nombre)
+                continue
             f["gmail_message_id"] = msg["id"]
+            f["remitente_correo"] = (msg.get("remitente") or "")[:200] or None
             f["hash_adjunto"] = h
             # Clasificar PRIMERO y derivar el concepto de retención del tipo
             # de gasto sugerido — antes se calculaba todo como "compras", así
@@ -115,6 +124,61 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
     return "factura" if creadas else "ignorado"
 
 
+def _completar_factura(store: Store, factura: dict, xml: bytes, zip_bytes: bytes | None,
+                       ext: str, nombre_adjunto: str) -> None:
+    """Rellena lo que le falte a una factura ya existente: items y/o
+    documentos (XML y el PDF visual del ZIP). Idempotente: solo agrega lo
+    que no esta."""
+    fid = factura["id"]
+    base = nombre_renombrado(factura)
+
+    if not store.tiene_items(fid):
+        datos = dian_xml.parsear_factura(xml)
+        if datos and datos["items"]:
+            store.insertar_items(fid, datos["items"])
+            print(f"  + reparados {len(datos['items'])} items de la factura {factura.get('numero')}")
+
+    mimes = store.mimes_de_factura(fid)
+    if "application/xml" not in mimes:
+        store.subir_documento(fid, nombre_adjunto, xml, "application/xml", base[:-4] + ".xml")
+        print(f"  + reparado XML de la factura {factura.get('numero')}")
+    if "application/pdf" not in mimes and ext == "zip" and zip_bytes:
+        try:
+            pdfs = dian_xml.extraer_pdfs_de_zip(zip_bytes)
+            if pdfs:
+                store.subir_documento(fid, pdfs[0][0], pdfs[0][1], "application/pdf", base)
+                print(f"  + reparado PDF de la factura {factura.get('numero')}")
+        except Exception:
+            pass
+
+
+def _reparar_incompletas(store: Store, h: str, contenido: bytes, xmls: list[bytes],
+                         ext: str, nombre_adjunto: str) -> None:
+    """El adjunto ya se habia procesado (mismo hash). Verifica que la
+    factura resultante haya quedado completa y repara si no."""
+    factura = store.factura_por_hash(h)
+    if not factura:
+        return
+    for xml in xmls:
+        datos = dian_xml.parsear_factura(xml)
+        if not datos:
+            continue
+        # con varias facturas en el zip, solo la que corresponde a este hash
+        if factura.get("cufe") and datos["factura"].get("cufe") != factura["cufe"]:
+            continue
+        _completar_factura(store, factura, xml, contenido if ext == "zip" else None, ext, nombre_adjunto)
+        return
+
+
+def _reparar_por_cufe(store: Store, cufe: str, xml: bytes, contenido: bytes,
+                      ext: str, nombre_adjunto: str) -> None:
+    """Mismo CUFE ya registrado (reenvio del proveedor con otro archivo):
+    no se duplica la factura, pero se aprovecha para completarla."""
+    factura = store.factura_por_cufe(cufe)
+    if factura:
+        _completar_factura(store, factura, xml, contenido if ext == "zip" else None, ext, nombre_adjunto)
+
+
 def _factura_desde_ia(datos: dict, msg: dict, hash_adjunto: str | None, fuente: str) -> dict:
     return {
         "sentido": datos.get("sentido") or "gasto",
@@ -129,6 +193,7 @@ def _factura_desde_ia(datos: dict, msg: dict, hash_adjunto: str | None, fuente: 
         "confianza": "baja",
         "fuente": fuente,
         "gmail_message_id": msg["id"],
+        "remitente_correo": (msg.get("remitente") or "")[:200] or None,
         "hash_adjunto": hash_adjunto,
     }
 

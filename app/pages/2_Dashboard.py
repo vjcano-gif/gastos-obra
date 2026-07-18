@@ -61,23 +61,27 @@ c3.metric("Saldo", db.cop(i - g))
 
 st.divider()
 st.subheader("Gastos por proyecto")
-if not pr.empty:
+items_all = db.todos_los_items(sb, uid)
+detalle = db.detalle_clasificado(fx, items_all)
+# El reparto multiproyecto manda sobre proyecto_id cuando existe
+detalle = db.aplicar_asignaciones(detalle, db.asignaciones(sb, uid))
+detalle_gasto = detalle[detalle["sentido"] == "gasto"] if not detalle.empty else detalle
+
+if not pr.empty and not detalle_gasto.empty:
     por_p = (
-        fx[fx["sentido"] == "gasto"]
-        .merge(pr[["id", "nombre"]], left_on="proyecto_id", right_on="id", how="left")
+        detalle_gasto.merge(pr[["id", "nombre"]], left_on="proyecto_id", right_on="id", how="left")
         .fillna({"nombre": "Sin asignar"})
-        .groupby("nombre")["monto_efectivo"]
+        .groupby("nombre")["valor"]
         .sum()
         .sort_values()
     )
     fig2 = go.Figure(go.Bar(x=por_p.values, y=por_p.index, orientation="h", marker_color="#D85A30"))
     fig2.update_layout(height=max(200, 40 * len(por_p)), xaxis_title="COP")
     st.plotly_chart(fig2, use_container_width=True)
-    st.caption("Costo acumulado por obra. 'Sin asignar' es lo que espera revisión: idealmente cero.")
-
-items_all = db.todos_los_items(sb, uid)
-detalle = db.detalle_clasificado(fx, items_all)
-detalle_gasto = detalle[detalle["sentido"] == "gasto"] if not detalle.empty else detalle
+    st.caption(
+        "Costo acumulado por obra, calculado a nivel de artículo y respetando el reparto "
+        "multiproyecto donde exista. 'Sin asignar' espera revisión: idealmente cero."
+    )
 
 c_tipo, c_cap = st.columns(2)
 with c_tipo:

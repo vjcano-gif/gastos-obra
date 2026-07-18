@@ -18,6 +18,10 @@ sb, uid = db.requiere_sesion()
 
 st.title("📋 Revisión y asignación")
 
+puede_aprobar = db.puede_aprobar(sb, uid)
+if not puede_aprobar:
+    st.caption("🔒 Tu rol no permite aprobar facturas: puedes clasificar y guardar.")
+
 pr = db.proyectos(sb, uid)
 tg = db.tipos_gasto(sb, uid)
 cap = db.capitulos(sb, uid)
@@ -36,6 +40,7 @@ opciones_act = {"— sin actividad —": None} | (
 )
 opciones_res = {"— sin residente —": None} | ({r["nombre"]: r["id"] for _, r in res.iterrows()} if not res.empty else {})
 
+nombre_pr = {v: k for k, v in opciones_pr.items() if v}
 nombre_tg = {v: k for k, v in opciones_tg.items() if v}
 nombre_cap = {v: k for k, v in opciones_cap.items() if v}
 nombre_act = {v: k for k, v in opciones_act.items() if v}
@@ -212,7 +217,9 @@ if not fx.empty:
                     )
                     ca, cb = st.columns(2)
                     guardar = ca.form_submit_button("💾 Guardar", use_container_width=True)
-                    aprobar = cb.form_submit_button("✅ Aprobar", use_container_width=True)
+                    aprobar = cb.form_submit_button(
+                        "✅ Aprobar", use_container_width=True, disabled=not puede_aprobar
+                    )
                     if guardar or aprobar:
                         cambios = {
                             "proyecto_id": opciones_pr[proy],
@@ -232,6 +239,55 @@ if not fx.empty:
                 if st.button("🚫 Anular / descartar", key=f"an{f['id']}"):
                     sb.table("facturas").update({"estado": "anulada"}).eq("id", f["id"]).execute()
                     st.rerun()
+
+                # --- reparto entre varios proyectos (full costing)
+                asig_f = db.asignaciones(sb, uid, f["id"])
+                with st.expander(
+                    f"🏗️ Repartir entre proyectos{' ✅' if not asig_f.empty else ''}"
+                ):
+                    if not asig_f.empty:
+                        st.caption("Reparto actual (manda sobre el proyecto único):")
+                        for _, a in asig_f.iterrows():
+                            ca1, ca2 = st.columns([4, 1])
+                            ca1.write(
+                                f"· {nombre_pr.get(a['proyecto_id'], '—')} — {db.cop(a['monto'])}"
+                                + (f" ({a['porcentaje']:.1f}%)" if a.get("porcentaje") else "")
+                            )
+                            if ca2.button("Quitar", key=f"delasig{a['id']}"):
+                                sb.table("asignacion_costos").delete().eq("id", a["id"]).execute()
+                                st.rerun()
+                        asignado = float(asig_f["monto"].abs().sum())
+                        st.caption(
+                            f"Asignado: {db.cop(asignado)} de {db.cop(abs(f['total']))} "
+                            f"({asignado / abs(f['total']) * 100:.0f}%)" if f["total"] else ""
+                        )
+                    with st.form(f"nueva_asig_{f['id']}"):
+                        cr1, cr2 = st.columns(2)
+                        proy_rep = cr1.selectbox(
+                            "Proyecto", [p for p in opciones_pr if opciones_pr[p]], key=f"pr{f['id']}"
+                        )
+                        pct = cr2.number_input(
+                            "% de la factura", min_value=0.0, max_value=100.0, step=5.0,
+                            value=50.0, key=f"pct{f['id']}",
+                        )
+                        base_txt = st.text_input(
+                            "Criterio (opcional)", key=f"base{f['id']}",
+                            placeholder="ej. m2 construidos: Torre A=120, Torre B=80",
+                        )
+                        if st.form_submit_button("➕ Agregar reparto") and pct > 0:
+                            sb.table("asignacion_costos").insert(
+                                {
+                                    "user_id": uid,
+                                    "factura_id": f["id"],
+                                    "proyecto_id": opciones_pr[proy_rep],
+                                    "porcentaje": pct,
+                                    "monto": round(abs(float(f["total"] or 0)) * pct / 100, 2),
+                                    "metodo": "porcentaje",
+                                    "base_asignacion": base_txt or None,
+                                    "creado_por": db.usuario_actual_id(),
+                                }
+                            ).execute()
+                            st.rerun()
 
 st.divider()
 st.subheader("➕ Registro manual (gasto o ingreso)")

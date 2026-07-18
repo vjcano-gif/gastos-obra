@@ -147,6 +147,9 @@ def parsear_factura(xml_bytes: bytes) -> dict | None:
     cliente = raiz.get("AccountingCustomerParty", {}).get("Party", {})
     ct = _lista(cliente.get("PartyTaxScheme"))
     cli_nit = _texto((ct[0] if ct else {}).get("CompanyID"))
+    cli_nombre = _texto((ct[0] if ct else {}).get("RegistrationName")) or _texto(
+        cliente.get("PartyName", {}).get("Name")
+    )
 
     # Impuestos y retenciones por código de TaxScheme
     montos = {v: Decimal("0") for v in IMPUESTOS.values()}
@@ -159,10 +162,20 @@ def parsear_factura(xml_bytes: bytes) -> dict | None:
                     montos[campo] += _num(sub.get("TaxAmount") or tt.get("TaxAmount"))
 
     totales = raiz.get("LegalMonetaryTotal", {})
-    cargos = Decimal("0")
+    # Cargos separados por su razón declarada: flete y propina son costos de
+    # naturaleza distinta a un recargo genérico y se piden discriminados.
+    cargos = flete = propina = Decimal("0")
     for ac in _lista(raiz.get("AllowanceCharge")):
-        if _texto(ac.get("ChargeIndicator")).lower() == "true":
-            cargos += _num(ac.get("Amount"))
+        if _texto(ac.get("ChargeIndicator")).lower() != "true":
+            continue
+        monto_ac = _num(ac.get("Amount"))
+        razon = _texto(ac.get("AllowanceChargeReason")).lower()
+        if re.search(r"flete|transporte|acarreo|env[ií]o", razon):
+            flete += monto_ac
+        elif "propina" in razon:
+            propina += monto_ac
+        else:
+            cargos += monto_ac
 
     pagos = _lista(raiz.get("PaymentMeans"))
     primer_pago = pagos[0] if pagos else {}
@@ -194,12 +207,22 @@ def parsear_factura(xml_bytes: bytes) -> dict | None:
                 "iva": float(iva_monto),
                 "tarifa_iva": float(iva_tarifa) if iva_tarifa else None,
                 "total": float(_num(ln.get("LineExtensionAmount"))),
+                "total_con_iva": float(_num(ln.get("LineExtensionAmount")) + iva_monto),
             }
         )
         if desc:
             descripciones.append(desc)
 
     fecha = _texto(raiz.get("IssueDate"))
+    plazo_dias = None
+    if fecha and vence:
+        try:
+            from datetime import date as _date
+
+            plazo_dias = (_date.fromisoformat(vence) - _date.fromisoformat(fecha)).days
+        except ValueError:
+            plazo_dias = None
+
     return {
         "factura": {
             "tipo_documento": tipo_doc,
@@ -210,8 +233,10 @@ def parsear_factura(xml_bytes: bytes) -> dict | None:
             "proveedor_nombre": prov_nombre,
             "proveedor_nit": prov_nit,
             "cliente_nit": cli_nit,
+            "cliente_nombre": cli_nombre or None,
             "fecha_emision": fecha or None,
             "fecha_vencimiento": vence or None,
+            "plazo_dias": plazo_dias,
             "forma_pago": {"1": "contado", "2": "credito"}.get(forma),
             "metodo_pago": MEDIOS_PAGO_DIAN.get(medio_codigo),
             "orden_compra": orden_compra or None,
@@ -222,7 +247,13 @@ def parsear_factura(xml_bytes: bytes) -> dict | None:
             "iva": float(montos["iva"]),
             "impoconsumo": float(montos["impoconsumo"]),
             "cargos": float(cargos),
+            "flete": float(flete),
+            "propina": float(propina),
+            "ajuste": float(_num(totales.get("PayableRoundingAmount"))),
             "retenciones_xml": float(montos["retefuente"] + montos["reteiva"] + montos["reteica"]),
+            "rete_fuente_xml": float(montos["retefuente"]),
+            "rete_iva_xml": float(montos["reteiva"]),
+            "rete_ica_xml": float(montos["reteica"]),
             "total": float(_num(totales.get("PayableAmount"))),
             "descripcion": " | ".join(descripciones)[:2000],
         },
