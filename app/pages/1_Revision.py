@@ -36,6 +36,10 @@ opciones_act = {"— sin actividad —": None} | (
 )
 opciones_res = {"— sin residente —": None} | ({r["nombre"]: r["id"] for _, r in res.iterrows()} if not res.empty else {})
 
+nombre_tg = {v: k for k, v in opciones_tg.items() if v}
+nombre_cap = {v: k for k, v in opciones_cap.items() if v}
+nombre_act = {v: k for k, v in opciones_act.items() if v}
+
 fx = db.facturas(sb, uid)
 
 if fx.empty:
@@ -109,15 +113,17 @@ if not fx.empty:
         icono = "🟢" if f["sentido"] == "ingreso" else "🔴"
         alerta = " ⚠️ posible duplicado" if f.get("posible_duplicado_de") else ""
         baja = " 🔍 confianza baja" if f.get("confianza") == "baja" else ""
+        numero_doc = f.get("numero") or "s.n."
         titulo = (
             f"{icono} {f.get('fecha_emision') or 's.f.'} · "
-            f"{(f.get('proveedor_nombre') or 'Sin nombre')[:45]} · {db.cop(f['total'])} · "
-            f"{f['tipo_documento']} · {f['estado']}{alerta}{baja}"
+            f"{(f.get('proveedor_nombre') or 'Sin nombre')[:45]} · N.° {numero_doc} · {db.cop(f['total'])} · "
+            f"{f['estado']}{alerta}{baja}"
         )
         with st.expander(titulo):
+            items_f = db.factura_items(sb, f["id"])
             c1, c2 = st.columns([3, 2])
             with c1:
-                st.caption(f.get("descripcion") or "Sin descripción")
+                st.markdown(db.render_factura_html(f, items_f), unsafe_allow_html=True)
                 if f.get("cufe"):
                     st.caption(f"CUFE: `{str(f['cufe'])[:40]}…`")
                 ret = (f.get("rete_fuente") or 0) + (f.get("rete_iva") or 0) + (f.get("rete_ica") or 0)
@@ -136,21 +142,55 @@ if not fx.empty:
                         continue
                     nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
                     es_pdf = str(d.get("mime", "")).endswith("pdf")
-                    st.markdown(f"📄 [⬇️ Descargar {nombre_doc}]({url})")
+                    st.markdown(f"📄 [⬇️ Descargar original: {nombre_doc}]({url})")
                     if es_pdf:
                         st.iframe(url, height=500)
                     else:
                         st.caption(
-                            "Archivo técnico (XML de la DIAN) — no tiene vista previa visual, "
-                            "ábrelo con el enlace de arriba (lector de XML o Excel)."
+                            "El archivo original es el XML técnico de la DIAN — la vista de arriba "
+                            "ya muestra sus datos de forma legible. Descárgalo solo si necesitas el XML crudo."
                         )
+
+                if not items_f.empty:
+                    st.markdown("**Clasificación por artículo**")
+                    with st.form(f"items_{f['id']}"):
+                        seleccion_items = {}
+                        for _, it in items_f.iterrows():
+                            st.caption(f"{it.get('descripcion') or 'Sin descripción'} · {db.cop(it.get('total'))}")
+                            ci1, ci2, ci3 = st.columns(3)
+                            tipo_i = ci1.selectbox(
+                                "Tipo de gasto", list(opciones_tg), key=f"tg_{it['id']}",
+                                index=list(opciones_tg).index(nombre_tg.get(it.get("tipo_gasto_id"), "— sin tipo —")),
+                            )
+                            cap_i = ci2.selectbox(
+                                "Capítulo", list(opciones_cap), key=f"cap_{it['id']}",
+                                index=list(opciones_cap).index(nombre_cap.get(it.get("capitulo_id"), "— sin capítulo —")),
+                            )
+                            act_i = ci3.selectbox(
+                                "Actividad", list(opciones_act), key=f"act_{it['id']}",
+                                index=list(opciones_act).index(nombre_act.get(it.get("actividad_id"), "— sin actividad —")),
+                            )
+                            seleccion_items[it["id"]] = (tipo_i, cap_i, act_i)
+                        if st.form_submit_button("💾 Guardar clasificación de artículos", use_container_width=True):
+                            for item_id, (tipo_i, cap_i, act_i) in seleccion_items.items():
+                                sb.table("factura_items").update(
+                                    {
+                                        "tipo_gasto_id": opciones_tg[tipo_i],
+                                        "capitulo_id": opciones_cap[cap_i],
+                                        "actividad_id": opciones_act[act_i],
+                                    }
+                                ).eq("id", item_id).execute()
+                            st.success("Artículos clasificados.")
+                            st.rerun()
             with c2:
                 with st.form(f"asig_{f['id']}"):
                     proy = st.selectbox("Proyecto", list(opciones_pr), key=f"p{f['id']}")
-                    tipo = st.selectbox("Tipo de gasto", list(opciones_tg), key=f"t{f['id']}")
-                    capitulo = st.selectbox("Capítulo", list(opciones_cap), key=f"cap{f['id']}")
-                    actividad = st.selectbox("Actividad", list(opciones_act), key=f"act{f['id']}")
                     residente = st.selectbox("Residente", list(opciones_res), key=f"res{f['id']}")
+                    if items_f.empty:
+                        st.caption("Sin detalle de artículos: clasifica la factura completa aquí.")
+                        tipo = st.selectbox("Tipo de gasto", list(opciones_tg), key=f"t{f['id']}")
+                        capitulo = st.selectbox("Capítulo", list(opciones_cap), key=f"cap{f['id']}")
+                        actividad = st.selectbox("Actividad", list(opciones_act), key=f"act{f['id']}")
                     metodo = st.selectbox("Método de pago", ["", "TC", "TD", "contado", "transferencia"])
                     pagador = st.selectbox("Quién paga", ["", "empresa", "cliente"])
                     concepto = st.text_input("Concepto", value=f.get("concepto") or "")
@@ -160,9 +200,6 @@ if not fx.empty:
                     if guardar or aprobar:
                         cambios = {
                             "proyecto_id": opciones_pr[proy],
-                            "tipo_gasto_id": opciones_tg[tipo],
-                            "capitulo_id": opciones_cap[capitulo],
-                            "actividad_id": opciones_act[actividad],
                             "residente_id": opciones_res[residente],
                             "metodo_pago": metodo or None,
                             "pagador": pagador or None,
@@ -170,6 +207,10 @@ if not fx.empty:
                             "estado": "aprobada" if aprobar else "asignada",
                             "posible_duplicado_de": None,
                         }
+                        if items_f.empty:
+                            cambios["tipo_gasto_id"] = opciones_tg[tipo]
+                            cambios["capitulo_id"] = opciones_cap[capitulo]
+                            cambios["actividad_id"] = opciones_act[actividad]
                         sb.table("facturas").update(cambios).eq("id", f["id"]).execute()
                         st.rerun()
                 if st.button("🚫 Anular / descartar", key=f"an{f['id']}"):

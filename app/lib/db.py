@@ -230,6 +230,97 @@ def residentes(sb, uid) -> pd.DataFrame:
     )
 
 
+def factura_items(sb, factura_id: str) -> pd.DataFrame:
+    return df(
+        sb.table("factura_items").select("*").eq("factura_id", factura_id).order("linea").execute()
+    )
+
+
+def todos_los_items(sb, uid) -> pd.DataFrame:
+    """Todos los items de todas las facturas del workspace, paginado (mismo
+    tope de 1000 filas por respuesta que facturas())."""
+    tam_pagina = 1000
+    inicio = 0
+    filas: list[dict] = []
+    while True:
+        lote = (
+            sb.table("factura_items")
+            .select("*")
+            .eq("user_id", uid)
+            .range(inicio, inicio + tam_pagina - 1)
+            .execute()
+            .data
+            or []
+        )
+        filas.extend(lote)
+        if len(lote) < tam_pagina:
+            break
+        inicio += tam_pagina
+    return pd.DataFrame(filas)
+
+
+def detalle_clasificado(fx: pd.DataFrame, items_all: pd.DataFrame) -> pd.DataFrame:
+    """Una fila por artículo (con su propia clasificación), y una fila de
+    respaldo por cada factura SIN detalle de artículos (manuales,
+    consignaciones) usando la clasificación de la factura completa. Base
+    común para "Todas las facturas" y los reportes por capítulo/tipo."""
+    if fx.empty:
+        return pd.DataFrame()
+
+    fx_indexed = fx.set_index("id")
+    con_items = set(items_all["factura_id"]) if items_all is not None and not items_all.empty else set()
+
+    filas = []
+    if items_all is not None and not items_all.empty:
+        for _, it in items_all.iterrows():
+            fid = it["factura_id"]
+            if fid not in fx_indexed.index:
+                continue
+            fac = fx_indexed.loc[fid]
+            filas.append(
+                {
+                    "factura_id": fid,
+                    "item_id": it["id"],
+                    "fecha_emision": fac.get("fecha_emision"),
+                    "numero": fac.get("numero"),
+                    "proveedor_nombre": fac.get("proveedor_nombre"),
+                    "descripcion": it.get("descripcion"),
+                    "cantidad": it.get("cantidad"),
+                    "valor": it.get("total"),
+                    "sentido": fac.get("sentido"),
+                    "estado": fac.get("estado"),
+                    "proyecto_id": fac.get("proyecto_id"),
+                    "residente_id": fac.get("residente_id"),
+                    "tipo_gasto_id": it.get("tipo_gasto_id"),
+                    "capitulo_id": it.get("capitulo_id"),
+                    "actividad_id": it.get("actividad_id"),
+                }
+            )
+
+    for fid, fac in fx_indexed.iterrows():
+        if fid not in con_items:
+            filas.append(
+                {
+                    "factura_id": fid,
+                    "item_id": None,
+                    "fecha_emision": fac.get("fecha_emision"),
+                    "numero": fac.get("numero"),
+                    "proveedor_nombre": fac.get("proveedor_nombre"),
+                    "descripcion": fac.get("descripcion") or "(sin detalle de artículos)",
+                    "cantidad": None,
+                    "valor": fac.get("total"),
+                    "sentido": fac.get("sentido"),
+                    "estado": fac.get("estado"),
+                    "proyecto_id": fac.get("proyecto_id"),
+                    "residente_id": fac.get("residente_id"),
+                    "tipo_gasto_id": fac.get("tipo_gasto_id"),
+                    "capitulo_id": fac.get("capitulo_id"),
+                    "actividad_id": fac.get("actividad_id"),
+                }
+            )
+    return pd.DataFrame(filas)
+
+
 def facturas(sb, uid, **filtros) -> pd.DataFrame:
     """Supabase/PostgREST limita cada respuesta a 1000 filas por defecto,
     sin importar el .limit() que pidamos — hay que paginar con .range()
@@ -259,6 +350,56 @@ def facturas(sb, uid, **filtros) -> pd.DataFrame:
             axis=1,
         )
     return data
+
+
+def render_factura_html(f: dict, items: pd.DataFrame) -> str:
+    """Representación visual de la factura a partir de los datos YA
+    extraídos (no del XML crudo, que no es legible para un humano)."""
+    import html as _html
+
+    def esc(v) -> str:
+        return _html.escape(str(v)) if v is not None else ""
+
+    filas_items = ""
+    if items is not None and not items.empty:
+        for _, it in items.iterrows():
+            filas_items += (
+                "<tr>"
+                f"<td style='padding:4px 6px;'>{esc(it.get('descripcion') or '')}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{esc(it.get('cantidad') or '')}</td>"
+                f"<td style='padding:4px 6px;'>{esc(it.get('unidad') or '')}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('precio_unitario'))}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('total'))}</td>"
+                "</tr>"
+            )
+    tabla_items = (
+        "<table style='width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;'>"
+        "<tr style='border-bottom:1px solid #ccc;text-align:left;'>"
+        "<th style='padding:4px 6px;'>Descripción</th><th style='padding:4px 6px;'>Cant.</th>"
+        "<th style='padding:4px 6px;'>Unidad</th><th style='padding:4px 6px;'>V. unitario</th>"
+        "<th style='padding:4px 6px;'>V. total</th></tr>"
+        f"{filas_items}</table>"
+    ) if filas_items else "<p style='color:#888;font-size:13px;'>Sin detalle de artículos.</p>"
+
+    return f"""
+    <div style='font-family:-apple-system,Segoe UI,sans-serif;border:1px solid #d0d0d0;
+                border-radius:10px;padding:16px;margin-bottom:8px;'>
+      <div style='display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;'>
+        <div>
+          <strong>{esc(f.get('proveedor_nombre') or 'Sin nombre')}</strong><br>
+          <span style='color:#666;'>NIT {esc(f.get('proveedor_nit') or 's.d.')}</span>
+        </div>
+        <div style='text-align:right;'>
+          <strong>{esc(f.get('tipo_documento') or 'Documento').capitalize()} {esc(f.get('numero') or '')}</strong><br>
+          <span style='color:#666;'>{esc(f.get('fecha_emision') or 's.f.')}</span>
+        </div>
+      </div>
+      {tabla_items}
+      <div style='text-align:right;margin-top:10px;font-size:15px;'>
+        <strong>Total: {cop(f.get('total'))}</strong>
+      </div>
+    </div>
+    """
 
 
 def url_documento(sb, storage_path: str, minutos: int = 10) -> str | None:

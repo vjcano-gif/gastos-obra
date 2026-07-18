@@ -75,15 +75,37 @@ if not pr.empty:
     st.plotly_chart(fig2, use_container_width=True)
     st.caption("Costo acumulado por obra. 'Sin asignar' es lo que espera revisión: idealmente cero.")
 
-st.subheader("Gastos por tipo")
-tg = db.tipos_gasto(sb, uid)
-if not tg.empty:
-    por_t = (
-        fx[fx["sentido"] == "gasto"]
-        .merge(tg[["id", "nombre"]], left_on="tipo_gasto_id", right_on="id", how="left")
-        .fillna({"nombre": "Sin clasificar"})
-        .groupby("nombre")["monto_efectivo"]
-        .sum()
-        .sort_values(ascending=False)
-    )
-    st.dataframe(por_t.map(db.cop), use_container_width=True)
+items_all = db.todos_los_items(sb, uid)
+detalle = db.detalle_clasificado(fx, items_all)
+detalle_gasto = detalle[detalle["sentido"] == "gasto"] if not detalle.empty else detalle
+
+c_tipo, c_cap = st.columns(2)
+with c_tipo:
+    st.subheader("Gastos por tipo")
+    tg = db.tipos_gasto(sb, uid)
+    if not tg.empty and not detalle_gasto.empty:
+        por_t = (
+            detalle_gasto.merge(tg[["id", "nombre"]], left_on="tipo_gasto_id", right_on="id", how="left")
+            .fillna({"nombre": "Sin clasificar"})
+            .groupby("nombre")["valor"]
+            .sum()
+            .sort_values(ascending=False)
+        )
+        st.dataframe(por_t.map(db.cop), use_container_width=True)
+
+with c_cap:
+    st.subheader("Gastos por capítulo")
+    cap = db.capitulos(sb, uid)
+    if not cap.empty and not detalle_gasto.empty:
+        por_c = (
+            detalle_gasto.merge(cap[["id", "nombre"]], left_on="capitulo_id", right_on="id", how="left")
+            .fillna({"nombre": "Sin clasificar"})
+            .groupby("nombre")["valor"]
+            .sum()
+            .sort_values(ascending=False)
+        )
+        st.dataframe(por_c.map(db.cop), use_container_width=True)
+st.caption(
+    "Ahora la clasificación por tipo y por capítulo se calcula por artículo (Revisión / "
+    "Todas las facturas), no por factura completa — más preciso cuando una compra mezcla varios rubros."
+)
