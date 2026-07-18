@@ -20,9 +20,12 @@ def _elegir_xml(contenido: bytes, factura: dict) -> tuple[bytes, dict] | None:
     ya sea que `contenido` sea el XML de verdad o el ZIP viejo (bug)."""
     candidatos: list[tuple[bytes, dict]] = []
 
-    datos = dian_xml.parsear_factura(contenido)
-    if datos:
-        candidatos.append((contenido, datos))
+    try:
+        datos = dian_xml.parsear_factura(contenido)
+        if datos:
+            candidatos.append((contenido, datos))
+    except Exception:
+        pass  # `contenido` no es XML valido (ej. es el ZIP viejo del bug) -> se intenta como zip abajo
 
     if not candidatos:
         try:
@@ -70,54 +73,58 @@ def reprocesar() -> None:
         revisados += 1
         try:
             contenido = sb.storage.from_("documentos").download(d["storage_path"])
-        except Exception:
-            errores += 1
-            continue
 
-        fila = sb.table("facturas").select("*").eq("id", d["factura_id"]).limit(1).execute().data
-        if not fila:
-            continue
-        factura = fila[0]
-
-        elegido = _elegir_xml(contenido, factura)
-        if elegido is None:
-            errores += 1
-            continue
-        xml_bytes, datos = elegido
-        f2 = datos["factura"]
-
-        cambios_factura = {
-            campo: f2[campo]
-            for campo in ("notas", "orden_compra", "moneda", "metodo_pago")
-            if not factura.get(campo) and f2.get(campo)
-        }
-        if cambios_factura:
-            sb.table("facturas").update(cambios_factura).eq("id", factura["id"]).execute()
-
-        items_actuales = (
-            sb.table("factura_items").select("id, linea").eq("factura_id", factura["id"]).execute().data or []
-        )
-        por_linea = {it["linea"]: it["id"] for it in items_actuales}
-        for it2 in datos["items"]:
-            item_id = por_linea.get(it2["linea"])
-            if not item_id:
+            fila = sb.table("facturas").select("*").eq("id", d["factura_id"]).limit(1).execute().data
+            if not fila:
                 continue
-            sb.table("factura_items").update(
-                {
-                    "descuento": it2.get("descuento"),
-                    "iva": it2.get("iva"),
-                    "tarifa_iva": it2.get("tarifa_iva"),
-                    "codigo_articulo": it2.get("codigo_articulo"),
-                }
-            ).eq("id", item_id).execute()
+            factura = fila[0]
 
-        if xml_bytes != contenido:
-            sb.storage.from_("documentos").upload(
-                d["storage_path"], xml_bytes, {"content-type": "application/xml", "upsert": "true"}
+            elegido = _elegir_xml(contenido, factura)
+            if elegido is None:
+                errores += 1
+                continue
+            xml_bytes, datos = elegido
+            f2 = datos["factura"]
+
+            cambios_factura = {
+                campo: f2[campo]
+                for campo in ("notas", "orden_compra", "moneda", "metodo_pago")
+                if not factura.get(campo) and f2.get(campo)
+            }
+            if cambios_factura:
+                sb.table("facturas").update(cambios_factura).eq("id", factura["id"]).execute()
+
+            items_actuales = (
+                sb.table("factura_items").select("id, linea").eq("factura_id", factura["id"]).execute().data
+                or []
             )
-            reempaquetados += 1
+            por_linea = {it["linea"]: it["id"] for it in items_actuales}
+            for it2 in datos["items"]:
+                item_id = por_linea.get(it2["linea"])
+                if not item_id:
+                    continue
+                sb.table("factura_items").update(
+                    {
+                        "descuento": it2.get("descuento"),
+                        "iva": it2.get("iva"),
+                        "tarifa_iva": it2.get("tarifa_iva"),
+                        "codigo_articulo": it2.get("codigo_articulo"),
+                    }
+                ).eq("id", item_id).execute()
 
-        actualizados += 1
+            if xml_bytes != contenido:
+                sb.storage.from_("documentos").upload(
+                    d["storage_path"], xml_bytes, {"content-type": "application/xml", "upsert": "true"}
+                )
+                reempaquetados += 1
+
+            actualizados += 1
+        except Exception as e:
+            errores += 1
+            print(f"  ! error en documento {d['id']}: {e}")
+
+        if revisados % 200 == 0:
+            print(f"  ... {revisados}/{len(docs)} revisados")
 
     print(
         f"Documentos revisados: {revisados} | actualizados: {actualizados} | "
