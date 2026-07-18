@@ -191,17 +191,25 @@ if not fx.empty:
                         tipo = st.selectbox("Tipo de gasto", list(opciones_tg), key=f"t{f['id']}")
                         capitulo = st.selectbox("Capítulo", list(opciones_cap), key=f"cap{f['id']}")
                         actividad = st.selectbox("Actividad", list(opciones_act), key=f"act{f['id']}")
+                    # Los vacíos llegan de pandas como NaN (que es "truthy" y no
+                    # está en la lista) — no basta con `or ""`, hay que validar
+                    # pertenencia antes del .index() o revienta con ValueError.
                     metodo_ops = ["", "TC", "TD", "contado", "transferencia"]
+                    metodo_actual = f.get("metodo_pago")
                     metodo = st.selectbox(
                         "Método de pago", metodo_ops, key=f"met{f['id']}",
-                        index=metodo_ops.index(f.get("metodo_pago") or ""),
+                        index=metodo_ops.index(metodo_actual if metodo_actual in metodo_ops else ""),
                     )
                     pagador_ops = ["", "empresa", "cliente"]
+                    pagador_actual = f.get("pagador")
                     pagador = st.selectbox(
                         "Quién paga", pagador_ops, key=f"pag{f['id']}",
-                        index=pagador_ops.index(f.get("pagador") or ""),
+                        index=pagador_ops.index(pagador_actual if pagador_actual in pagador_ops else ""),
                     )
-                    concepto = st.text_input("Concepto", value=f.get("concepto") or "")
+                    concepto_actual = f.get("concepto")
+                    concepto = st.text_input(
+                        "Concepto", value=concepto_actual if isinstance(concepto_actual, str) else ""
+                    )
                     ca, cb = st.columns(2)
                     guardar = ca.form_submit_button("💾 Guardar", use_container_width=True)
                     aprobar = cb.form_submit_button("✅ Aprobar", use_container_width=True)
