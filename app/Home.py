@@ -36,6 +36,7 @@ st.markdown(
     """
 **Rutas rápidas**
 - 📋 **Revisión** — asignar proyecto, tipo de gasto y método de pago a lo que llegó.
+- 🗂️ **Todas las facturas** — ver y corregir el universo completo, con filtros y segmentador de fechas.
 - 📈 **Dashboard** — gastos vs ingresos por mes, con segmentador por proyecto.
 - 💳 **Cuentas por pagar** — vencimientos, saldos y registro de abonos.
 - ✉️ **Estado de cuenta** — informe del proyecto listo para enviar al cliente.

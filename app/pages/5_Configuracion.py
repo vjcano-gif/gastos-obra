@@ -16,10 +16,12 @@ tab_p, tab_t, tab_c, tab_r, tab_u = st.tabs(
 with tab_p:
     pr = db.proyectos(sb, uid)
     if not pr.empty:
-        st.dataframe(
-            pr[["nombre", "codigo", "cliente_nombre", "cliente_email", "estado"]],
-            use_container_width=True,
-        )
+        cols_mostrar = [
+            c
+            for c in ["nombre", "codigo", "cliente_nombre", "cliente_email", "fecha_inicio", "fecha_fin", "estado"]
+            if c in pr.columns
+        ]
+        st.dataframe(pr[cols_mostrar], use_container_width=True)
     with st.form("nuevo_proyecto"):
         st.subheader("Nuevo proyecto")
         c1, c2 = st.columns(2)
@@ -29,6 +31,9 @@ with tab_p:
         cli = c3.text_input("Cliente")
         nit = c4.text_input("NIT del cliente")
         email = c5.text_input("Correo del cliente")
+        c6, c7 = st.columns(2)
+        fecha_inicio = c6.date_input("Fecha de inicio", value=None)
+        fecha_fin = c7.date_input("Fecha de fin (estimada)", value=None)
         presupuesto = st.number_input("Presupuesto total (opcional)", min_value=0.0, step=1000000.0)
         if st.form_submit_button("Crear proyecto") and nombre and codigo:
             sb.table("proyectos").insert(
@@ -39,10 +44,62 @@ with tab_p:
                     "cliente_nombre": cli or None,
                     "cliente_nit": nit or None,
                     "cliente_email": email or None,
+                    "fecha_inicio": str(fecha_inicio) if fecha_inicio else None,
+                    "fecha_fin": str(fecha_fin) if fecha_fin else None,
                     "presupuesto_total": presupuesto or None,
                 }
             ).execute()
             st.rerun()
+
+    st.divider()
+    st.subheader("📅 Cronograma: abonos y entregables")
+    st.caption(
+        "Programa las fechas en que el cliente debe abonar y las fechas de entrega comprometidas. "
+        "Sirve como referencia al revisar consignaciones y avance del proyecto."
+    )
+    if pr.empty:
+        st.caption("Crea un proyecto primero.")
+    else:
+        opciones_pr_hitos = {r["nombre"]: r["id"] for _, r in pr.iterrows()}
+        proy_sel_nombre = st.selectbox("Proyecto", list(opciones_pr_hitos), key="hitos_proy_sel")
+        proy_sel_id = opciones_pr_hitos[proy_sel_nombre]
+
+        hitos = db.hitos_proyecto(sb, uid, proy_sel_id)
+        if not hitos.empty:
+            etiqueta_tipo = {"abono": "💰 Abono", "entregable": "📦 Entregable"}
+            tabla_hitos = hitos.assign(tipo=hitos["tipo"].map(etiqueta_tipo))
+            st.dataframe(
+                tabla_hitos[["tipo", "fecha", "descripcion", "monto", "cumplido"]],
+                use_container_width=True,
+            )
+            pendientes = hitos[~hitos["cumplido"]]
+            if not pendientes.empty:
+                etiqueta_hito = {
+                    f"{etiqueta_tipo[r['tipo']]} · {r['fecha']} · {r['descripcion']}": r["id"]
+                    for _, r in pendientes.iterrows()
+                }
+                marcar = st.selectbox("Marcar como cumplido", list(etiqueta_hito), key="marcar_hito")
+                if st.button("✅ Marcar cumplido"):
+                    sb.table("hitos_proyecto").update({"cumplido": True}).eq("id", etiqueta_hito[marcar]).execute()
+                    st.rerun()
+        with st.form("nuevo_hito"):
+            c1, c2, c3 = st.columns(3)
+            tipo_hito = c1.selectbox("Tipo", ["abono", "entregable"], format_func=lambda t: "💰 Abono" if t == "abono" else "📦 Entregable")
+            fecha_hito = c2.date_input("Fecha programada", value=date.today())
+            monto_hito = c3.number_input("Monto (solo abonos)", min_value=0.0, step=100000.0)
+            desc_hito = st.text_input("Descripción (ej. 'Segundo abono' o 'Entrega de cimentación')")
+            if st.form_submit_button("Agregar al cronograma") and desc_hito:
+                sb.table("hitos_proyecto").insert(
+                    {
+                        "user_id": uid,
+                        "proyecto_id": proy_sel_id,
+                        "tipo": tipo_hito,
+                        "descripcion": desc_hito,
+                        "fecha": str(fecha_hito),
+                        "monto": monto_hito if tipo_hito == "abono" and monto_hito else None,
+                    }
+                ).execute()
+                st.rerun()
 
 with tab_t:
     tg = db.tipos_gasto(sb, uid)

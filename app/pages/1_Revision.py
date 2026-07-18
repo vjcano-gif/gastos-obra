@@ -1,3 +1,4 @@
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -40,7 +41,22 @@ fx = db.facturas(sb, uid)
 if fx.empty:
     st.info("No hay documentos todavía.")
 else:
+    fx["_fecha_dt"] = pd.to_datetime(fx["fecha_emision"], errors="coerce")
+    fechas_validas = fx["_fecha_dt"].dropna()
+    if not fechas_validas.empty:
+        min_fecha, max_fecha = fechas_validas.min().date(), fechas_validas.max().date()
+        st.caption(
+            f"📅 Filtrar por fecha (datos disponibles desde {min_fecha} hasta {max_fecha}). "
+            "Aplica a las métricas, gráficas y la lista de abajo."
+        )
+        cf1, cf2 = st.columns(2)
+        desde = cf1.date_input("Desde", value=min_fecha, min_value=min_fecha, max_value=max_fecha, key="rev_desde")
+        hasta = cf2.date_input("Hasta", value=max_fecha, min_value=min_fecha, max_value=max_fecha, key="rev_hasta")
+        fx = fx[fx["_fecha_dt"].isna() | ((fx["_fecha_dt"].dt.date >= desde) & (fx["_fecha_dt"].dt.date <= hasta))]
+
     st.subheader("📊 Estado de la revisión")
+    if fx.empty:
+        st.info("No hay documentos en ese rango de fechas.")
     resumen = (
         fx.assign(monto_abs=fx["monto_efectivo"].abs())
         .groupby("estado")
@@ -116,11 +132,18 @@ if not fx.empty:
                 )
                 for _, d in docs.iterrows():
                     url = db.url_documento(sb, d["storage_path"])
-                    if url:
-                        st.markdown(f"📄 [{d.get('nombre_renombrado') or d.get('nombre_original')}]({url})")
-                        if str(d.get("mime", "")).endswith("pdf"):
-                            with st.popover("👁 Previsualizar"):
-                                st.iframe(url, height=500)
+                    if not url:
+                        continue
+                    nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
+                    es_pdf = str(d.get("mime", "")).endswith("pdf")
+                    st.markdown(f"📄 [⬇️ Descargar {nombre_doc}]({url})")
+                    if es_pdf:
+                        st.iframe(url, height=500)
+                    else:
+                        st.caption(
+                            "Archivo técnico (XML de la DIAN) — no tiene vista previa visual, "
+                            "ábrelo con el enlace de arriba (lector de XML o Excel)."
+                        )
             with c2:
                 with st.form(f"asig_{f['id']}"):
                     proy = st.selectbox("Proyecto", list(opciones_pr), key=f"p{f['id']}")

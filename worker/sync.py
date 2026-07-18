@@ -55,7 +55,7 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
                 cfg, f, contexto["tipos"], contexto["historial"]
             )
             fid = store.insertar_factura(f, datos["items"])
-            store.subir_documento(fid, nombre, contenido, "application/xml", nombre_renombrado(f))
+            store.subir_documento(fid, nombre, xml, "application/xml", nombre_renombrado(f))
             creadas += 1
 
         if ext == "pdf" and not xmls:

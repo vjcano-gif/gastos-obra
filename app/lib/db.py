@@ -200,6 +200,13 @@ def capitulos(sb, uid) -> pd.DataFrame:
     return df(sb.table("capitulos").select("*").eq("user_id", uid).order("orden").order("nombre").execute())
 
 
+def hitos_proyecto(sb, uid, proyecto_id: str | None = None) -> pd.DataFrame:
+    q = sb.table("hitos_proyecto").select("*").eq("user_id", uid)
+    if proyecto_id:
+        q = q.eq("proyecto_id", proyecto_id)
+    return df(q.order("fecha").execute())
+
+
 def actividades(sb, uid) -> pd.DataFrame:
     """Trae también el nombre del capítulo al que pertenece cada actividad,
     para poder mostrar "Estructura › Vaciado de placa" en los selectores."""
@@ -224,10 +231,27 @@ def residentes(sb, uid) -> pd.DataFrame:
 
 
 def facturas(sb, uid, **filtros) -> pd.DataFrame:
-    q = sb.table("facturas").select("*").eq("user_id", uid)
-    for k, v in filtros.items():
-        q = q.eq(k, v)
-    data = df(q.order("fecha_emision", desc=True).limit(5000).execute())
+    """Supabase/PostgREST limita cada respuesta a 1000 filas por defecto,
+    sin importar el .limit() que pidamos — hay que paginar con .range()
+    para traer todo (ya pasamos de 4000 facturas)."""
+
+    def consulta():
+        q = sb.table("facturas").select("*").eq("user_id", uid)
+        for k, v in filtros.items():
+            q = q.eq(k, v)
+        return q.order("fecha_emision", desc=True)
+
+    tam_pagina = 1000
+    inicio = 0
+    filas: list[dict] = []
+    while True:
+        lote = consulta().range(inicio, inicio + tam_pagina - 1).execute().data or []
+        filas.extend(lote)
+        if len(lote) < tam_pagina:
+            break
+        inicio += tam_pagina
+
+    data = pd.DataFrame(filas)
     if not data.empty:
         # las notas crédito restan
         data["monto_efectivo"] = data.apply(
