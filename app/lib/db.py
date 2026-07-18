@@ -278,6 +278,9 @@ def detalle_clasificado(fx: pd.DataFrame, items_all: pd.DataFrame) -> pd.DataFra
             if fid not in fx_indexed.index:
                 continue
             fac = fx_indexed.loc[fid]
+            # las notas crédito RESTAN también a nivel de artículo — si no,
+            # los reportes por tipo/capítulo las suman como gasto positivo
+            signo = -1 if fac.get("tipo_documento") == "nota_credito" else 1
             filas.append(
                 {
                     "factura_id": fid,
@@ -287,7 +290,7 @@ def detalle_clasificado(fx: pd.DataFrame, items_all: pd.DataFrame) -> pd.DataFra
                     "proveedor_nombre": fac.get("proveedor_nombre"),
                     "descripcion": it.get("descripcion"),
                     "cantidad": it.get("cantidad"),
-                    "valor": it.get("total"),
+                    "valor": signo * abs(it.get("total") or 0),
                     "sentido": fac.get("sentido"),
                     "estado": fac.get("estado"),
                     "proyecto_id": fac.get("proyecto_id"),
@@ -309,7 +312,7 @@ def detalle_clasificado(fx: pd.DataFrame, items_all: pd.DataFrame) -> pd.DataFra
                     "proveedor_nombre": fac.get("proveedor_nombre"),
                     "descripcion": fac.get("descripcion") or "(sin detalle de artículos)",
                     "cantidad": None,
-                    "valor": fac.get("total"),
+                    "valor": fac.get("monto_efectivo", fac.get("total")),
                     "sentido": fac.get("sentido"),
                     "estado": fac.get("estado"),
                     "proyecto_id": fac.get("proyecto_id"),

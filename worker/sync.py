@@ -49,12 +49,23 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
                 continue  # capa CUFE
             f["gmail_message_id"] = msg["id"]
             f["hash_adjunto"] = h
-            f["concepto_retencion"] = "compras"
-            f.update(retenciones.calcular(f, contexto["reglas"], contexto["uvt"]))
-            f.pop("concepto_retencion", None)
+            # Clasificar PRIMERO y derivar el concepto de retención del tipo
+            # de gasto sugerido — antes se calculaba todo como "compras", así
+            # que servicios/honorarios/arriendos recibían tarifa equivocada.
             f["tipo_gasto_id"] = clasificador.sugerir_tipo_gasto(
                 cfg, f, contexto["tipos"], contexto["historial"]
             )
+            concepto = next(
+                (
+                    t.get("concepto_retencion")
+                    for t in contexto["tipos"]
+                    if t.get("id") == f["tipo_gasto_id"]
+                ),
+                None,
+            )
+            f["concepto_retencion"] = concepto or "compras"
+            f.update(retenciones.calcular(f, contexto["reglas"], contexto["uvt"]))
+            f.pop("concepto_retencion", None)
             fid = store.insertar_factura(f, datos["items"])
             base = nombre_renombrado(f)  # termina en .pdf
             store.subir_documento(fid, nombre, xml, "application/xml", base[:-4] + ".xml")

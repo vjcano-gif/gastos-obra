@@ -19,4 +19,5 @@ jobs:
           python -m compileall -q worker app
           python -c "from worker import config, dian_xml, retenciones, storage, pdf_evidencia, clasificador, sync"
       - name: Prueba unitaria de retenciones
-        run: python -m pytest tests/ -q || python tests/test_retenciones.py
+        # sin fallback: el "||" anterior dejaba el CI verde aunque pytest fallara
+        run: python -m pytest tests/ -q
