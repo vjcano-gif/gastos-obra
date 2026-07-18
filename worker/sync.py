@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import sys
 
-from . import clasificador, dian_xml, gmail_client, pdf_evidencia, retenciones
+from . import clasificador, dian_xml, gmail_client, ocr, pdf_evidencia, retenciones
 from .config import Config
 from .storage import Store, nombre_renombrado
 
@@ -95,12 +95,32 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
         if ext == "pdf" and not xmls:
             # PDF suelto sin XML: la IA extrae, humano confirma
             contenido = pdf_evidencia.desbloquear_pdf(contenido, cfg.pdf_passwords)
-            texto = _texto_de_pdf(contenido) or msg["cuerpo"]
-            datos = clasificador.extraer_de_texto(cfg, f"{msg['asunto']}\n{texto}")
+            texto = _texto_de_pdf(contenido)
+            if ocr.pdf_es_escaneado(contenido):
+                # PDF escaneado: es una imagen dentro de un PDF, no hay texto
+                # que leer -> rasterizar y pasar por el modelo de visión.
+                datos = clasificador.extraer_de_imagen(cfg, ocr.pdf_a_imagenes(contenido))
+                fuente_doc = "ocr"
+            else:
+                datos = clasificador.extraer_de_texto(
+                    cfg, f"{msg['asunto']}\n{texto or msg['cuerpo']}"
+                )
+                fuente_doc = "pdf"
             if datos and datos.get("total"):
-                f = _factura_desde_ia(datos, msg, h, fuente="pdf")
-                fid = store.insertar_factura(f, [])
+                f = _factura_desde_ia(datos, msg, h, fuente=fuente_doc)
+                fid = store.insertar_factura(f, _items_desde_ia(datos))
                 store.subir_documento(fid, nombre, contenido, "application/pdf", nombre_renombrado(f))
+                creadas += 1
+
+        # --- foto o escaneo suelto (recibo, cuenta de cobro, consignación)
+        if ocr.es_imagen(nombre):
+            imagen = ocr.comprimir_imagen(contenido)
+            datos = clasificador.extraer_de_imagen(cfg, [imagen])
+            if datos and datos.get("total"):
+                f = _factura_desde_ia(datos, msg, h, fuente="ocr")
+                fid = store.insertar_factura(f, _items_desde_ia(datos))
+                mime = f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}"
+                store.subir_documento(fid, nombre, contenido, mime, nombre_renombrado(f))
                 creadas += 1
 
     # --- sin adjuntos: ¿consignación u otro soporte en el cuerpo?
@@ -199,13 +219,31 @@ def _factura_desde_ia(datos: dict, msg: dict, hash_adjunto: str | None, fuente: 
 
 
 def _texto_de_pdf(contenido: bytes) -> str:
-    try:
-        import fitz
+    return ocr.texto_de_pdf(contenido)[:15000]
 
-        with fitz.open(stream=contenido, filetype="pdf") as doc:
-            return "\n".join(p.get_text() for p in doc)[:15000]
-    except Exception:
-        return ""
+
+def _items_desde_ia(datos: dict) -> list[dict]:
+    """Artículos que el modelo de visión alcanzó a leer. Van con los mismos
+    campos que los del XML para que Revisión los trate igual; lo que el
+    modelo no distinga queda en None y el humano lo completa."""
+    items = []
+    for it in datos.get("items") or []:
+        desc = (it.get("descripcion") or "").strip()
+        if not desc:
+            continue
+        # numerar sobre los artículos REALMENTE agregados: si se enumerara
+        # la lista original, descartar uno vacío dejaría huecos (1, 3, 4...)
+        # y la reparación por número de línea dejaría de casar.
+        items.append(
+            {
+                "linea": len(items) + 1,
+                "descripcion": desc[:500],
+                "cantidad": it.get("cantidad"),
+                "precio_unitario": it.get("precio_unitario"),
+                "total": it.get("total"),
+            }
+        )
+    return items
 
 
 def main() -> int:

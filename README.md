@@ -31,7 +31,14 @@ workspace, que puede invitar a su equipo a compartir los mismos datos.
 3. **GitHub**: crear repo privado con este contenido. En Settings → Secrets →
    Actions crear: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_USER_ID`,
    `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`,
-   `OPENAI_API_KEY` (opcional), `PDF_PASSWORDS` (opcional, separadas por coma).
+   `PDF_PASSWORDS` (opcional, separadas por coma) y **`OPENAI_API_KEY`**.
+   Sin `OPENAI_API_KEY` el sistema funciona, pero apagado en tres frentes:
+   no sugiere tipo de gasto para proveedores nuevos, no extrae datos de
+   documentos sin XML (cuentas de cobro, consignaciones en el cuerpo del
+   correo) y **no hace OCR** de PDFs escaneados ni de fotos de recibos —
+   esos documentos se guardan pero entran a Revisión sin datos.
+   `LLM_MODEL_VISION` (opcional) cambia el modelo de OCR: por defecto
+   `gpt-4o-mini`; `gpt-4o` acierta más en fotos difíciles y cuesta más.
 4. **Streamlit Cloud**: nueva app → este repo → archivo `app/Home.py`.
    En Secrets pegar:
    ```toml

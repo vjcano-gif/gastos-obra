@@ -146,10 +146,13 @@ if not fx.empty:
                     if not url:
                         continue
                     nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
-                    es_pdf = str(d.get("mime", "")).endswith("pdf")
+                    mime_doc = str(d.get("mime", ""))
                     st.markdown(f"📄 [⬇️ Descargar original: {nombre_doc}]({url})")
-                    if es_pdf:
+                    if mime_doc.endswith("pdf"):
                         st.iframe(url, height=500)
+                    elif mime_doc.startswith("image/"):
+                        # una foto de recibo NO es un XML: se muestra tal cual
+                        st.image(url, use_container_width=True)
                     else:
                         st.caption(
                             "El archivo original es el XML técnico de la DIAN — la vista de arriba "

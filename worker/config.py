@@ -29,6 +29,9 @@ class Config:
 
     openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
     llm_model: str = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+    # Modelo para OCR de imágenes: debe soportar visión (gpt-4o-mini la
+    # soporta y es el más barato; gpt-4o acierta más en fotos difíciles).
+    llm_model_vision: str = os.environ.get("LLM_MODEL_VISION", "gpt-4o-mini")
 
     pdf_passwords: tuple[str, ...] = field(
         default_factory=lambda: tuple(
