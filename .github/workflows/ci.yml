@@ -14,10 +14,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      # pytest NO va en requirements.txt: eso lo instalaria tambien en
+      # produccion (Streamlit Cloud) sin necesidad. Es dependencia solo
+      # del CI. Antes faltaba del todo y el "|| script" lo enmascaraba.
+      - run: pip install pytest
       - name: Compilar todos los módulos
         run: |
           python -m compileall -q worker app
           python -c "from worker import config, dian_xml, retenciones, storage, pdf_evidencia, clasificador, sync"
-      - name: Prueba unitaria de retenciones
+      - name: Pruebas unitarias (retenciones y OCR)
         # sin fallback: el "||" anterior dejaba el CI verde aunque pytest fallara
         run: python -m pytest tests/ -q
