@@ -96,6 +96,18 @@ def extraer_xml_de_zip(contenido_zip: bytes) -> list[bytes]:
     return xmls
 
 
+def extraer_pdfs_de_zip(contenido_zip: bytes) -> list[tuple[str, bytes]]:
+    """El ZIP DIAN normalmente trae, junto al XML, la representación
+    gráfica de la factura en PDF (la que un humano quiere VER).
+    Devuelve [(nombre_archivo, bytes)]."""
+    pdfs = []
+    with zipfile.ZipFile(io.BytesIO(contenido_zip)) as z:
+        for nombre in z.namelist():
+            if nombre.lower().endswith(".pdf"):
+                pdfs.append((nombre.rsplit("/", 1)[-1], z.read(nombre)))
+    return pdfs
+
+
 def _desenvolver(xml_bytes: bytes) -> dict | None:
     """AttachedDocument lleva el Invoice real como CDATA en cac:Attachment."""
     doc = _sin_ns(xmltodict.parse(xml_bytes))

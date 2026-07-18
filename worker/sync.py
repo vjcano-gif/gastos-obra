@@ -39,6 +39,7 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
         elif ext == "xml":
             xmls = [contenido]
 
+        fids_de_este_zip = []
         for xml in xmls:
             datos = dian_xml.parsear_factura(xml)
             if not datos:
@@ -55,8 +56,21 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
                 cfg, f, contexto["tipos"], contexto["historial"]
             )
             fid = store.insertar_factura(f, datos["items"])
-            store.subir_documento(fid, nombre, xml, "application/xml", nombre_renombrado(f))
+            base = nombre_renombrado(f)  # termina en .pdf
+            store.subir_documento(fid, nombre, xml, "application/xml", base[:-4] + ".xml")
+            fids_de_este_zip.append((fid, base))
             creadas += 1
+
+        # El ZIP DIAN también trae la representación en PDF de la factura —
+        # esa es la que un humano quiere ver. Si el zip generó exactamente
+        # una factura, sus PDFs le pertenecen sin ambigüedad.
+        if ext == "zip" and len(fids_de_este_zip) == 1:
+            fid, base = fids_de_este_zip[0]
+            try:
+                for nombre_pdf, pdf_bytes in dian_xml.extraer_pdfs_de_zip(contenido):
+                    store.subir_documento(fid, nombre_pdf, pdf_bytes, "application/pdf", base)
+            except Exception:
+                pass  # sin PDF no se pierde nada critico: el XML ya quedo guardado
 
         if ext == "pdf" and not xmls:
             # PDF suelto sin XML: la IA extrae, humano confirma
