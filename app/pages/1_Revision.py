@@ -191,8 +191,16 @@ if not fx.empty:
                         tipo = st.selectbox("Tipo de gasto", list(opciones_tg), key=f"t{f['id']}")
                         capitulo = st.selectbox("Capítulo", list(opciones_cap), key=f"cap{f['id']}")
                         actividad = st.selectbox("Actividad", list(opciones_act), key=f"act{f['id']}")
-                    metodo = st.selectbox("Método de pago", ["", "TC", "TD", "contado", "transferencia"])
-                    pagador = st.selectbox("Quién paga", ["", "empresa", "cliente"])
+                    metodo_ops = ["", "TC", "TD", "contado", "transferencia"]
+                    metodo = st.selectbox(
+                        "Método de pago", metodo_ops, key=f"met{f['id']}",
+                        index=metodo_ops.index(f.get("metodo_pago") or ""),
+                    )
+                    pagador_ops = ["", "empresa", "cliente"]
+                    pagador = st.selectbox(
+                        "Quién paga", pagador_ops, key=f"pag{f['id']}",
+                        index=pagador_ops.index(f.get("pagador") or ""),
+                    )
                     concepto = st.text_input("Concepto", value=f.get("concepto") or "")
                     ca, cb = st.columns(2)
                     guardar = ca.form_submit_button("💾 Guardar", use_container_width=True)

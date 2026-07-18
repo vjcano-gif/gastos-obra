@@ -363,12 +363,20 @@ def render_factura_html(f: dict, items: pd.DataFrame) -> str:
     filas_items = ""
     if items is not None and not items.empty:
         for _, it in items.iterrows():
+            cod = it.get("codigo_articulo")
+            desc_item = esc(it.get("descripcion") or "")
+            if cod:
+                desc_item += f" <span style='color:#999;'>[{esc(cod)}]</span>"
+            tarifa = it.get("tarifa_iva")
+            iva_txt = f"{cop(it.get('iva'))}" + (f" ({tarifa:.0f}%)" if tarifa else "")
             filas_items += (
                 "<tr>"
-                f"<td style='padding:4px 6px;'>{esc(it.get('descripcion') or '')}</td>"
+                f"<td style='padding:4px 6px;'>{desc_item}</td>"
                 f"<td style='padding:4px 6px;text-align:right;'>{esc(it.get('cantidad') or '')}</td>"
                 f"<td style='padding:4px 6px;'>{esc(it.get('unidad') or '')}</td>"
                 f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('precio_unitario'))}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('descuento'))}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{iva_txt}</td>"
                 f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('total'))}</td>"
                 "</tr>"
             )
@@ -377,9 +385,25 @@ def render_factura_html(f: dict, items: pd.DataFrame) -> str:
         "<tr style='border-bottom:1px solid #ccc;text-align:left;'>"
         "<th style='padding:4px 6px;'>Descripción</th><th style='padding:4px 6px;'>Cant.</th>"
         "<th style='padding:4px 6px;'>Unidad</th><th style='padding:4px 6px;'>V. unitario</th>"
+        "<th style='padding:4px 6px;'>Descuento</th><th style='padding:4px 6px;'>IVA</th>"
         "<th style='padding:4px 6px;'>V. total</th></tr>"
         f"{filas_items}</table>"
     ) if filas_items else "<p style='color:#888;font-size:13px;'>Sin detalle de artículos.</p>"
+
+    extras = []
+    if f.get("orden_compra"):
+        extras.append(f"<strong>Orden de compra:</strong> {esc(f['orden_compra'])}")
+    if f.get("metodo_pago"):
+        extras.append(f"<strong>Medio de pago:</strong> {esc(f['metodo_pago'])}")
+    if f.get("moneda") and f.get("moneda") != "COP":
+        extras.append(f"<strong>Moneda:</strong> {esc(f['moneda'])}")
+    linea_extras = (
+        f"<div style='font-size:13px;color:#444;margin-top:8px;'>{' · '.join(extras)}</div>" if extras else ""
+    )
+    linea_notas = (
+        f"<div style='font-size:13px;color:#444;margin-top:6px;'><strong>Notas:</strong> {esc(f['notas'])}</div>"
+        if f.get("notas") else ""
+    )
 
     return f"""
     <div style='font-family:-apple-system,Segoe UI,sans-serif;border:1px solid #d0d0d0;
@@ -394,6 +418,8 @@ def render_factura_html(f: dict, items: pd.DataFrame) -> str:
           <span style='color:#666;'>{esc(f.get('fecha_emision') or 's.f.')}</span>
         </div>
       </div>
+      {linea_extras}
+      {linea_notas}
       {tabla_items}
       <div style='text-align:right;margin-top:10px;font-size:15px;'>
         <strong>Total: {cop(f.get('total'))}</strong>
