@@ -57,15 +57,28 @@ def reprocesar() -> None:
     store = Store(cfg)
     sb = store.sb
 
-    docs = (
-        sb.table("documentos")
-        .select("id, factura_id, storage_path")
-        .eq("user_id", cfg.user_id)
-        .eq("mime", "application/xml")
-        .execute()
-        .data
-        or []
-    )
+    # Supabase/PostgREST limita cada respuesta a 1000 filas por defecto sin
+    # importar el .limit() pedido (mismo tope que ya se corrigio en la app)
+    # -> hay que paginar con .range() para traer los 4000+ documentos.
+    docs: list[dict] = []
+    tam_pagina = 1000
+    inicio = 0
+    while True:
+        lote = (
+            sb.table("documentos")
+            .select("id, factura_id, storage_path")
+            .eq("user_id", cfg.user_id)
+            .eq("mime", "application/xml")
+            .order("id")
+            .range(inicio, inicio + tam_pagina - 1)
+            .execute()
+            .data
+            or []
+        )
+        docs.extend(lote)
+        if len(lote) < tam_pagina:
+            break
+        inicio += tam_pagina
 
     revisados = actualizados = reempaquetados = errores = 0
 

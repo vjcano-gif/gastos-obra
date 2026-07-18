@@ -247,6 +247,7 @@ def todos_los_items(sb, uid) -> pd.DataFrame:
             sb.table("factura_items")
             .select("*")
             .eq("user_id", uid)
+            .order("id")
             .range(inicio, inicio + tam_pagina - 1)
             .execute()
             .data
@@ -330,7 +331,10 @@ def facturas(sb, uid, **filtros) -> pd.DataFrame:
         q = sb.table("facturas").select("*").eq("user_id", uid)
         for k, v in filtros.items():
             q = q.eq(k, v)
-        return q.order("fecha_emision", desc=True)
+        # "id" como desempate: varias facturas comparten fecha (o la tienen
+        # nula), y sin un orden 100% determinista la paginacion con .range()
+        # puede saltarse o repetir filas entre paginas.
+        return q.order("fecha_emision", desc=True).order("id")
 
     tam_pagina = 1000
     inicio = 0
