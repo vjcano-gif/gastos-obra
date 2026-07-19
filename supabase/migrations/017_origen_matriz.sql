@@ -20,9 +20,11 @@ alter table public.facturas add constraint facturas_fuente_check
 
 alter table public.facturas add column if not exists origen_matriz text;
 
+-- Un solo literal a proposito: Postgres solo concatena literales
+-- adyacentes cuando los separa un SALTO DE LINEA, asi que partirlo en dos
+-- hace que la sentencia deje de ser valida si alguien la reformatea.
 comment on column public.facturas.origen_matriz is
-  'Fila de origen en el Excel historico ("MATRIZ GASTOS!2360"). Permite '
-  'reejecutar la importacion sin duplicar y revertirla por completo.';
+  'Fila de origen en el Excel historico ("MATRIZ GASTOS!2360"). Permite reejecutar la importacion sin duplicar y revertirla por completo.';
 
 -- La idempotencia se apoya en este indice: dos corridas de la importacion
 -- sobre la misma fila chocan en vez de duplicar el movimiento.
