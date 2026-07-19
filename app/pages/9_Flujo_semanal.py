@@ -37,9 +37,13 @@ with tab_comparar:
         )
     else:
         plan = db.plan_semanal(sb, uid, list(ppto["id"]))
-        todas = db.facturas(sb, uid)
-        fx = todas[todas["proyecto_id"] == proyecto_id] if not todas.empty else pd.DataFrame()
-        real = db.detalle_clasificado(fx, db.todos_los_items(sb, uid)) if not fx.empty else pd.DataFrame()
+        # Solo las facturas y los items de esta obra, filtrados en la base.
+        fx = db.facturas(sb, uid, proyecto_id=proyecto_id)
+        real = (
+            db.detalle_clasificado(fx, db.items_de_factura_ids(sb, uid, fx["id"].tolist()))
+            if not fx.empty
+            else pd.DataFrame()
+        )
 
         comparacion = db.planeado_vs_real(plan, real)
         if comparacion.empty:
@@ -146,7 +150,7 @@ with tab_ppto:
                         "orden": len(ppto),
                     }
                 ).execute()
-                st.rerun()
+                db.rerun()
 
         if not ppto.empty:
             st.divider()
@@ -173,4 +177,4 @@ with tab_ppto:
                         },
                         on_conflict="presupuesto_id,anio,semana",
                     ).execute()
-                    st.rerun()
+                    db.rerun()

@@ -25,28 +25,15 @@ import openpyxl
 
 from . import matriz
 from .config import Config
+from .paginacion import traer_todo
 from .storage import Store
-
-PAGINA = 1000     # tope duro de PostgREST: hay que paginar siempre
 
 
 def _todas(sb, tabla: str, uid: str, columnas: str = "*") -> list[dict]:
-    """Trae una tabla completa.
-
-    PostgREST corta en 1.000 filas SIN avisar. Ya nos mordio antes
-    (Revision mostraba "1000 (100%)" sobre 4.052 facturas), asi que aqui
-    se pagina siempre y se ordena por id para que el paginado sea estable.
-    """
-    filas, desde = [], 0
-    while True:
-        r = (
-            sb.table(tabla).select(columnas).eq("user_id", uid)
-            .order("id").range(desde, desde + PAGINA - 1).execute()
-        )
-        filas.extend(r.data or [])
-        if len(r.data or []) < PAGINA:
-            return filas
-        desde += PAGINA
+    """Tabla completa del workspace, paginando el tope de PostgREST."""
+    return traer_todo(
+        sb.table(tabla).select(columnas).eq("user_id", uid).order("id")
+    )
 
 
 class Importador:

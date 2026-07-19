@@ -48,10 +48,9 @@ if rol == "cliente":
     facturas = pd.DataFrame()
     costos = db.costo_por_capitulo(sb, proyecto_id)
 else:
-    todas = db.facturas(sb, uid)
-    facturas = (
-        todas[todas["proyecto_id"] == proyecto_id] if not todas.empty else pd.DataFrame()
-    )
+    # El filtro por proyecto va a la base: baja solo las facturas de esta
+    # obra, no las miles del workspace para descartarlas en pandas.
+    facturas = db.facturas(sb, uid, proyecto_id=proyecto_id)
     costos = None
 
 # ------------------------------------------------------------ encabezado

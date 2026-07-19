@@ -187,7 +187,7 @@ if not fx.empty:
                                     }
                                 ).eq("id", item_id).execute()
                             st.success("Artículos clasificados.")
-                            st.rerun()
+                            db.rerun()
             with c2:
                 with st.form(f"asig_{f['id']}"):
                     proy = st.selectbox("Proyecto", list(opciones_pr), key=f"p{f['id']}")
@@ -292,10 +292,10 @@ if not fx.empty:
                             cambios["capitulo_id"] = opciones_cap[capitulo]
                             cambios["actividad_id"] = opciones_act[actividad]
                         sb.table("facturas").update(cambios).eq("id", f["id"]).execute()
-                        st.rerun()
+                        db.rerun()
                 if st.button("🚫 Anular / descartar", key=f"an{f['id']}"):
                     sb.table("facturas").update({"estado": "anulada"}).eq("id", f["id"]).execute()
-                    st.rerun()
+                    db.rerun()
 
                 # --- reparto entre varios proyectos (full costing)
                 asig_f = db.asignaciones(sb, uid, f["id"])
@@ -312,7 +312,7 @@ if not fx.empty:
                             )
                             if ca2.button("Quitar", key=f"delasig{a['id']}"):
                                 sb.table("asignacion_costos").delete().eq("id", a["id"]).execute()
-                                st.rerun()
+                                db.rerun()
                         asignado = float(asig_f["monto"].abs().sum())
                         st.caption(
                             f"Asignado: {db.cop(asignado)} de {db.cop(abs(f['total']))} "
@@ -344,7 +344,7 @@ if not fx.empty:
                                     "creado_por": db.usuario_actual_id(),
                                 }
                             ).execute()
-                            st.rerun()
+                            db.rerun()
 
 st.divider()
 st.subheader("➕ Registro manual (gasto o ingreso)")
@@ -392,4 +392,4 @@ with st.form("manual"):
                 }
             ).execute()
         st.success("Movimiento guardado.")
-        st.rerun()
+        db.rerun()

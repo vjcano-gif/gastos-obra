@@ -66,7 +66,7 @@ with tab_p:
                     "pagador_modo": modo,
                 }
             ).execute()
-            st.rerun()
+            db.rerun()
 
     st.divider()
     st.subheader("📐 Condiciones del contrato y cortes de obra")
@@ -98,7 +98,7 @@ with tab_p:
                 sb.table("proyectos").update(
                     {"pct_aiu": round(aiu_e / 100, 4), "pagador_modo": modo_e}
                 ).eq("id", p_cond["id"]).execute()
-                st.rerun()
+                db.rerun()
 
         cortes_p = db.cortes(sb, uid, p_cond["id"])
         if not cortes_p.empty:
@@ -127,7 +127,7 @@ with tab_p:
                         "fecha_fin": str(hasta) if hasta else None,
                     }
                 ).execute()
-                st.rerun()
+                db.rerun()
 
     st.divider()
     st.subheader("📅 Cronograma: abonos y entregables")
@@ -159,7 +159,7 @@ with tab_p:
                 marcar = st.selectbox("Marcar como cumplido", list(etiqueta_hito), key="marcar_hito")
                 if st.button("✅ Marcar cumplido"):
                     sb.table("hitos_proyecto").update({"cumplido": True}).eq("id", etiqueta_hito[marcar]).execute()
-                    st.rerun()
+                    db.rerun()
         with st.form("nuevo_hito"):
             c1, c2, c3 = st.columns(3)
             tipo_hito = c1.selectbox("Tipo", ["abono", "entregable"], format_func=lambda t: "💰 Abono" if t == "abono" else "📦 Entregable")
@@ -177,7 +177,7 @@ with tab_p:
                         "monto": monto_hito if tipo_hito == "abono" and monto_hito else None,
                     }
                 ).execute()
-                st.rerun()
+                db.rerun()
 
 with tab_t:
     tg = db.tipos_gasto(sb, uid)
@@ -192,7 +192,7 @@ with tab_t:
             sb.table("tipos_gasto").insert(
                 {"user_id": uid, "nombre": n, "capitulo": cap or None, "concepto_retencion": conc}
             ).execute()
-            st.rerun()
+            db.rerun()
 
 with tab_c:
     st.caption(
@@ -217,7 +217,7 @@ with tab_c:
                 f"Actividades: {r['actividades_nuevas']} nuevas, "
                 f"{r['actividades_actualizadas']} actualizadas."
             )
-            st.rerun()
+            db.rerun()
 
     st.subheader("Capítulos")
     cap = db.capitulos(sb, uid)
@@ -238,7 +238,7 @@ with tab_c:
                     "orden": int(orden_cap),
                 }
             ).execute()
-            st.rerun()
+            db.rerun()
 
     st.divider()
     st.subheader("Actividades")
@@ -259,7 +259,7 @@ with tab_c:
             sb.table("actividades").insert(
                 {"user_id": uid, "capitulo_id": opciones_cap_form[cap_sel], "nombre": n_act}
             ).execute()
-            st.rerun()
+            db.rerun()
 
     st.divider()
     st.subheader("Residentes")
@@ -270,7 +270,7 @@ with tab_c:
         n_res = st.text_input("Nombre del residente")
         if st.form_submit_button("Agregar residente") and n_res:
             sb.table("residentes").insert({"user_id": uid, "nombre": n_res}).execute()
-            st.rerun()
+            db.rerun()
 
 with tab_r:
     st.caption(
@@ -302,7 +302,7 @@ with tab_r:
                     sb.table("reglas_retencion").update({"vigencia_hasta": str(hasta)}).eq(
                         "id", etiqueta[sel]
                     ).execute()
-                    st.rerun()
+                    db.rerun()
     with st.form("nueva_regla"):
         st.subheader("Nueva regla")
         c1, c2, c3, c4 = st.columns(4)
@@ -325,7 +325,7 @@ with tab_r:
                     "municipio": muni or None,
                 }
             ).execute()
-            st.rerun()
+            db.rerun()
 
 with tab_u:
     st.caption("Valor de la UVT por año. Actualízalo cada enero (lo fija la DIAN).")
@@ -342,7 +342,7 @@ with tab_u:
         if st.form_submit_button("Guardar UVT") and valor:
             try:
                 sb.table("uvt").upsert({"anio": int(anio), "valor": valor}).execute()
-                st.rerun()
+                db.rerun()
             except Exception:
                 st.error(
                     "La tabla UVT solo permite lectura con este usuario. "

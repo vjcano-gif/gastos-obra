@@ -86,4 +86,4 @@ for _, f in pend.sort_values("dias").head(80).iterrows():
                 ).execute()
                 if monto >= f["saldo"]:
                     sb.table("facturas").update({"estado": "pagada"}).eq("id", f["id"]).execute()
-                st.rerun()
+                db.rerun()

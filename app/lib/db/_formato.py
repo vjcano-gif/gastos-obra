@@ -1,0 +1,191 @@
+"""Formato de pesos, normalización de texto y vista de documentos."""
+from __future__ import annotations
+
+import pandas as pd
+import streamlit as st
+
+def _norm(texto) -> str:
+    """Nombre comparable: sin tildes, sin dobles espacios, en minúsculas.
+    Sus archivos escriben el mismo capítulo de varias formas."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", str(texto or ""))
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return " ".join(t.lower().split())
+
+
+def cop(v) -> str:
+    try:
+        return f"${v:,.0f}".replace(",", ".")
+    except (TypeError, ValueError):
+        return "-"
+
+
+def render_factura_html(f: dict, items: pd.DataFrame) -> str:
+    """Representación visual de la factura a partir de los datos YA
+    extraídos (no del XML crudo, que no es legible para un humano)."""
+    import html as _html
+
+    def esc(v) -> str:
+        return _html.escape(str(v)) if v is not None else ""
+
+    filas_items = ""
+    if items is not None and not items.empty:
+        for _, it in items.iterrows():
+            cod = it.get("codigo_articulo")
+            desc_item = esc(it.get("descripcion") or "")
+            if cod:
+                desc_item += f" <span style='color:#999;'>[{esc(cod)}]</span>"
+            tarifa = it.get("tarifa_iva")
+            iva_txt = f"{cop(it.get('iva'))}" + (f" ({tarifa:.0f}%)" if tarifa else "")
+            filas_items += (
+                "<tr>"
+                f"<td style='padding:4px 6px;'>{desc_item}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{esc(it.get('cantidad') or '')}</td>"
+                f"<td style='padding:4px 6px;'>{esc(it.get('unidad') or '')}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('precio_unitario'))}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('descuento'))}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{iva_txt}</td>"
+                f"<td style='padding:4px 6px;text-align:right;'>{cop(it.get('total'))}</td>"
+                "</tr>"
+            )
+    tabla_items = (
+        "<table style='width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;'>"
+        "<tr style='border-bottom:1px solid #ccc;text-align:left;'>"
+        "<th style='padding:4px 6px;'>Descripción</th><th style='padding:4px 6px;'>Cant.</th>"
+        "<th style='padding:4px 6px;'>Unidad</th><th style='padding:4px 6px;'>V. unitario</th>"
+        "<th style='padding:4px 6px;'>Descuento</th><th style='padding:4px 6px;'>IVA</th>"
+        "<th style='padding:4px 6px;'>V. total</th></tr>"
+        f"{filas_items}</table>"
+    ) if filas_items else "<p style='color:#888;font-size:13px;'>Sin detalle de artículos.</p>"
+
+    extras = []
+    if f.get("orden_compra"):
+        extras.append(f"<strong>Orden de compra:</strong> {esc(f['orden_compra'])}")
+    if f.get("metodo_pago"):
+        extras.append(f"<strong>Medio de pago:</strong> {esc(f['metodo_pago'])}")
+    if f.get("moneda") and f.get("moneda") != "COP":
+        extras.append(f"<strong>Moneda:</strong> {esc(f['moneda'])}")
+    linea_extras = (
+        f"<div style='font-size:13px;color:#444;margin-top:8px;'>{' · '.join(extras)}</div>" if extras else ""
+    )
+    linea_notas = (
+        f"<div style='font-size:13px;color:#444;margin-top:6px;'><strong>Notas:</strong> {esc(f['notas'])}</div>"
+        if f.get("notas") else ""
+    )
+
+    return f"""
+    <div style='font-family:-apple-system,Segoe UI,sans-serif;border:1px solid #d0d0d0;
+                border-radius:10px;padding:16px;margin-bottom:8px;'>
+      <div style='display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;'>
+        <div>
+          <strong>{esc(f.get('proveedor_nombre') or 'Sin nombre')}</strong><br>
+          <span style='color:#666;'>NIT {esc(f.get('proveedor_nit') or 's.d.')}</span>
+        </div>
+        <div style='text-align:right;'>
+          <strong>{esc(f.get('tipo_documento') or 'Documento').capitalize()} {esc(f.get('numero') or '')}</strong><br>
+          <span style='color:#666;'>{esc(f.get('fecha_emision') or 's.f.')}</span>
+        </div>
+      </div>
+      {linea_extras}
+      {linea_notas}
+      {tabla_items}
+      <div style='text-align:right;margin-top:10px;font-size:15px;'>
+        <strong>Total: {cop(f.get('total'))}</strong>
+      </div>
+    </div>
+    """
+
+
+def url_documento(sb, storage_path: str, minutos: int = 10) -> str | None:
+    try:
+        r = sb.storage.from_("documentos").create_signed_url(storage_path, minutos * 60)
+        return r.get("signedURL") or r.get("signedUrl")
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=900, show_spinner=False, max_entries=40)
+def paginas_pdf(_sb, storage_path: str, max_paginas: int = 5) -> list[bytes]:
+    """Convierte el PDF a imágenes PNG en el servidor.
+
+    Mostrar el PDF con un <iframe> obliga a que el visor de PDF del
+    navegador funcione dentro del sandbox de Streamlit Cloud, y eso NO se
+    cumple siempre: depende del navegador, de su versión y de si el
+    usuario tiene el visor desactivado — en móvil falla casi siempre.
+    Se veía el ícono de documento roto aunque el archivo estuviera
+    perfecto (verificado: 43 KB, cabecera %PDF-1.4, sin cabeceras que
+    bloqueen el encuadre).
+
+    Rasterizar aquí elimina esa dependencia: al navegador le llega una
+    imagen, y una imagen la pinta cualquiera. El enlace de descarga del
+    PDF original se mantiene aparte para quien necesite el archivo.
+
+    El `_sb` va con guion bajo para que Streamlit no intente serializar
+    el cliente al calcular la clave del caché.
+    """
+    try:
+        contenido = _sb.storage.from_("documentos").download(storage_path)
+    except Exception:
+        return []
+
+    import fitz
+
+    imagenes = []
+    try:
+        with fitz.open(stream=contenido, filetype="pdf") as doc:
+            for pagina in doc[:max_paginas]:
+                # 144 dpi: se lee bien un número de factura sin inflar la
+                # página con imágenes de varios MB.
+                imagenes.append(pagina.get_pixmap(dpi=144).tobytes("png"))
+    except Exception:
+        return []
+    return imagenes
+
+
+def mostrar_documento(sb, d) -> None:
+    """Enlace de descarga + previsualización del documento, en la misma
+    pantalla (sin abrir otra pestaña). Lo usan Revisión y Todas las
+    facturas: una sola implementación, mismo comportamiento en ambas."""
+    url = url_documento(sb, d["storage_path"])
+    nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
+    mime_doc = str(d.get("mime", ""))
+
+    if url:
+        st.markdown(f"📄 [⬇️ Descargar original: {nombre_doc}]({url})")
+
+    if mime_doc.endswith("pdf"):
+        paginas = paginas_pdf(sb, d["storage_path"])
+        if paginas:
+            for n, png in enumerate(paginas, 1):
+                st.image(
+                    png,
+                    use_container_width=True,
+                    caption=f"Página {n} de {len(paginas)}" if len(paginas) > 1 else None,
+                )
+        elif url:
+            st.caption("No se pudo previsualizar el PDF; el enlace de descarga sí funciona.")
+    elif mime_doc.startswith("image/"):
+        # una foto de recibo NO es un XML: se muestra tal cual
+        if url:
+            st.image(url, use_container_width=True)
+    else:
+        st.caption(
+            "El archivo original es el XML técnico de la DIAN — la vista de arriba "
+            "ya muestra sus datos de forma legible. Descárgalo solo si necesitas el XML crudo."
+        )
+
+
+# ------------------------------------------------------------- AIU y cortes
+# La comision de Espacios es un % del costo (AIU del contrato). Las formulas
+# se verificaron contra sus cifras reales antes de escribirlas:
+#
+#   Arrayanes 40   42.842.500 x 11%  = 4.712.675   (Total Comision)
+#   Casa Vieja 61   1.684.702 x 14%  =   235.858   (AIU gastos, corte 1)
+#   Casa Vieja 61     530.000 x 14%  =    74.200   (AIU pagos directos)
+#
+# El AIU de los pagos directos se calcula por separado del de los gastos:
+# el pago directo del cliente NO pasa por la caja de Espacios, pero si
+# genera comision. Mezclarlos daria una caja equivocada.
+
+

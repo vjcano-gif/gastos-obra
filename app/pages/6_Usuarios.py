@@ -43,7 +43,7 @@ else:
         )
         if c3.button("Quitar", key=f"quitar_{m['id']}"):
             sb.table("miembros").delete().eq("id", m["id"]).execute()
-            st.rerun()
+            db.rerun()
 
 st.divider()
 st.subheader("➕ Agregar a alguien")
@@ -112,4 +112,4 @@ with st.form("agregar"):
                     if rol == "cliente"
                     else f"{email} ya puede entrar con su correo y contraseña, y ve tus mismos datos."
                 )
-                st.rerun()
+                db.rerun()

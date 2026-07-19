@@ -158,4 +158,4 @@ if filas_sel:
                 }
             ).eq("id", fila["factura_id"]).execute()
             st.success("Actualizado.")
-            st.rerun()
+            db.rerun()
