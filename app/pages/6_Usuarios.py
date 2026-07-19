@@ -59,12 +59,33 @@ with st.form("agregar"):
         "editor": "Editor — clasifica y edita, no aprueba",
         "lector": "Solo lectura — ve todo, no modifica nada",
         "aprobador": "Aprobador — además puede aprobar y marcar pagadas",
+        "cliente": "Cliente de obra — solo SU proyecto, sin ver proveedores",
     }
     rol = st.selectbox("Rol", list(ETIQUETA_ROL), format_func=lambda r: ETIQUETA_ROL[r])
+
+    # El cliente es el único rol que se limita a un proyecto. Sin proyecto
+    # no habría nada que lo limite, así que la base lo exige (migración 016)
+    # y aquí se pide antes de intentar guardarlo.
+    pr = db.proyectos(sb, uid)
+    proyecto_id = None
+    if rol == "cliente":
+        if pr.empty:
+            st.warning("Crea primero el proyecto que este cliente va a ver.")
+        else:
+            ops = {r["nombre"]: r["id"] for _, r in pr.iterrows()}
+            proyecto_id = ops[st.selectbox("Proyecto que puede ver", list(ops))]
+        st.info(
+            "Un cliente entra solo al módulo **Cash Flow del proyecto**: ve sus "
+            "anticipos, el costo por capítulo y corte, y la caja de su obra. "
+            "No ve proveedores, ni facturas individuales, ni las demás obras."
+        )
+
     if st.form_submit_button("Vincular a mi equipo"):
         email = email.strip().lower()
         if not email:
             st.warning("Escribe un correo.")
+        elif rol == "cliente" and not proyecto_id:
+            st.warning("Un cliente tiene que quedar asignado a un proyecto.")
         elif not miembros.empty and email in miembros["email"].values:
             st.warning("Esa persona ya está en tu equipo.")
         else:
@@ -83,7 +104,12 @@ with st.form("agregar"):
                         "member_user_id": encontrado.id,
                         "email": email,
                         "rol": rol,
+                        "proyecto_id": proyecto_id,
                     }
                 ).execute()
-                st.success(f"{email} ya puede entrar con su correo y contraseña, y ve tus mismos datos.")
+                st.success(
+                    f"{email} ya puede entrar con su correo y contraseña."
+                    if rol == "cliente"
+                    else f"{email} ya puede entrar con su correo y contraseña, y ve tus mismos datos."
+                )
                 st.rerun()

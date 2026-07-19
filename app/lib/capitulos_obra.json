@@ -1,0 +1,844 @@
+{
+ "capitulos": [
+  {
+   "codigo": "0",
+   "nombre": "TRAMITES"
+  },
+  {
+   "codigo": "1",
+   "nombre": "PRELIMINARES"
+  },
+  {
+   "codigo": "2",
+   "nombre": "EXCAVACIONES, FUNDACIONES Y CONCRETOS"
+  },
+  {
+   "codigo": "3",
+   "nombre": "MAMPOSTERIA"
+  },
+  {
+   "codigo": "4",
+   "nombre": "ENCHAPES Y ACABADOS DE MUROS y PISOS"
+  },
+  {
+   "codigo": "5",
+   "nombre": "REDES HIDROSANITARIAS Y DE AGUAS LLUVIAS"
+  },
+  {
+   "codigo": "6",
+   "nombre": "REDES ELECTRICAS E ILUMINACION"
+  },
+  {
+   "codigo": "7",
+   "nombre": "CARPINTERIA METALICA Y VENTANERIA"
+  },
+  {
+   "codigo": "8",
+   "nombre": "CARPINTERIA EN MADERA Y PUERTAS"
+  },
+  {
+   "codigo": "9",
+   "nombre": "TRABAJOS DE CUBIERTAS Y CIELOS RAZOS"
+  },
+  {
+   "codigo": "10",
+   "nombre": "TRABAJOS VARIOS DE ACABADOS DE OBRA"
+  },
+  {
+   "codigo": "11",
+   "nombre": "EQUIPOS ESPECIALES"
+  },
+  {
+   "codigo": "12",
+   "nombre": "URBANISMO"
+  },
+  {
+   "codigo": "13",
+   "nombre": "COSTOS INDIRECTOS"
+  },
+  {
+   "codigo": "14",
+   "nombre": "CORPORATIVOS"
+  },
+  {
+   "codigo": "15",
+   "nombre": "PERSONAL"
+  },
+  {
+   "codigo": "66",
+   "nombre": "SIN IDENTIFICAR"
+  }
+ ],
+ "actividades": [
+  {
+   "capitulo": "0",
+   "codigo": "0.01",
+   "nombre": "Planos, papeleria"
+  },
+  {
+   "capitulo": "0",
+   "codigo": "0.02",
+   "nombre": "Modelacion Grafica, Modelo Revit"
+  },
+  {
+   "capitulo": "0",
+   "codigo": "0.03",
+   "nombre": "Tramites Ambientales"
+  },
+  {
+   "capitulo": "0",
+   "codigo": "0.04",
+   "nombre": "Tramites Licencia"
+  },
+  {
+   "capitulo": "0",
+   "codigo": "0.05",
+   "nombre": "Impuestos"
+  },
+  {
+   "capitulo": "0",
+   "codigo": "0.06",
+   "nombre": "Diseños"
+  },
+  {
+   "capitulo": "0",
+   "codigo": "0.07",
+   "nombre": "Asesorias y Servicios"
+  },
+  {
+   "capitulo": "0",
+   "codigo": "0.08",
+   "nombre": "PresupuestoyCantidadesdeObra"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.01",
+   "nombre": "Cerramiento preliminar de obra"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.02",
+   "nombre": "Marcacion e implantacion de la casa en terreno (Lote bruto)"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.03",
+   "nombre": "Descapote, movimientos de tierra y sellado de superficies"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.04",
+   "nombre": "Trabajos forestales (incluye tala y limpieza final de lote)"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.05",
+   "nombre": "Instalacion de Campamento (estructura recuperable)"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.06",
+   "nombre": "Amoblamiento y estanterias oficina"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.07",
+   "nombre": "Herramientas y equipos varios para obra"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.08",
+   "nombre": "Material de remplazo, compactacion y sellamiento vias y parqueadero"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.09",
+   "nombre": "Nivelación de terreno hasta cota de implantación"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.10",
+   "nombre": "Instalación de invernadero"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.11",
+   "nombre": "Desague Aguas Sanitarias baño provisional"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.12",
+   "nombre": "Instalacion de WC provisional para obra"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.13",
+   "nombre": "Instalacion de redes hidrosanitarias provisionales"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.14",
+   "nombre": "Instalacion de redes Electricas provisionales"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.15",
+   "nombre": "Marcacion e implantacion de la casa en terreno (Proyecto lote nivelado)"
+  },
+  {
+   "capitulo": "1",
+   "codigo": "1.16",
+   "nombre": "Instalación de Cañuelas Provisionales de Obra"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.01",
+   "nombre": "Muros de contencion"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.02",
+   "nombre": "Fundaciones (Zapatas, Pilotes, Dados y Vigas de amarre)"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.03",
+   "nombre": "Concreto para losa"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.04",
+   "nombre": "Impermeabilizacion de Losa"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.05",
+   "nombre": "Columnas"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.06",
+   "nombre": "Vigas Aereas"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.07",
+   "nombre": "Losas de cubierta"
+  },
+  {
+   "capitulo": "2",
+   "codigo": "2.08",
+   "nombre": "Entresuelo afirmado interior"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.01",
+   "nombre": "Muros de Sobrecimiento en bloque para Muros"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.02",
+   "nombre": "MamposteriaAdovesuciomurosinterioresyexteriores"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.03",
+   "nombre": "Mamposteria Adove sucio muros interiores y exteriores"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.04",
+   "nombre": "Mampostería Adove a la vista"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.05",
+   "nombre": "Revoque liso sobre pared"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.06",
+   "nombre": "Fileteria y ranuras revoque en muros"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.07",
+   "nombre": "Detalle de vaciado borde ventanas en concreto reforzado"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.08",
+   "nombre": "Calados"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.09",
+   "nombre": "Vigas Descolgadas para Dinteles"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.10",
+   "nombre": "Dovelas Estructurales en mamposteria"
+  },
+  {
+   "capitulo": "3",
+   "codigo": "3.11",
+   "nombre": "Escaleras"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.01",
+   "nombre": "Pisos Interiores"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.02",
+   "nombre": "Pisos exteriores"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.03",
+   "nombre": "Zocalos Interiores"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.04",
+   "nombre": "Zocalos Exteriores"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.05",
+   "nombre": "Acabado de muros interiores"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.06",
+   "nombre": "Acabado de muros Exteriores (Fachada)"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.07",
+   "nombre": "Acabado especiales (microcemento, piedra, madera arkowood)"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.08",
+   "nombre": "Banca para ducha WC"
+  },
+  {
+   "capitulo": "4",
+   "codigo": "4.09",
+   "nombre": "Imperbeabilizacion de muros exteriores"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.01",
+   "nombre": "Red Agua Potable"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.02",
+   "nombre": "Agua potable M/O"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.03",
+   "nombre": "Agua sanitaria"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.04",
+   "nombre": "Aguas lluvias"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.05",
+   "nombre": "Pozo septico"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.06",
+   "nombre": "Conexión a PTAR"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.07",
+   "nombre": "Red de gas"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.08",
+   "nombre": "Tanque Reserva"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.09",
+   "nombre": "Trampa de grasas"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.10",
+   "nombre": "Cajas de Inspeccion"
+  },
+  {
+   "capitulo": "5",
+   "codigo": "5.11",
+   "nombre": "Rejillas de piso"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.01",
+   "nombre": "Red Electrica"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.02",
+   "nombre": "Apantallamiento"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.03",
+   "nombre": "Acometida Principal desde Punto Cero"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.04",
+   "nombre": "Salida de Energía 220"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.05",
+   "nombre": "Salida de Energía voz y Datos"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.06",
+   "nombre": "Salida de Energía sonido"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.07",
+   "nombre": "Certificacion RETIE"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.08",
+   "nombre": "Iluminación"
+  },
+  {
+   "capitulo": "6",
+   "codigo": "6.09",
+   "nombre": "Adecuacion energia solar general"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.01",
+   "nombre": "Ventanas"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.02",
+   "nombre": "Puertas"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.03",
+   "nombre": "Pasamanos"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.04",
+   "nombre": "Cabinas"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.05",
+   "nombre": "Domos"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.06",
+   "nombre": "Pergolas"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.07",
+   "nombre": "Cerrajeria"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.08",
+   "nombre": "Marcos y Estructuras Especiales"
+  },
+  {
+   "capitulo": "7",
+   "codigo": "7.09",
+   "nombre": "Escaleras"
+  },
+  {
+   "capitulo": "8",
+   "codigo": "8.01",
+   "nombre": "Puertas"
+  },
+  {
+   "capitulo": "8",
+   "codigo": "8.02",
+   "nombre": "Ventanas"
+  },
+  {
+   "capitulo": "8",
+   "codigo": "8.03",
+   "nombre": "Muebles Interiores"
+  },
+  {
+   "capitulo": "8",
+   "codigo": "8.04",
+   "nombre": "Cocina"
+  },
+  {
+   "capitulo": "8",
+   "codigo": "8.05",
+   "nombre": "Enchape Muros"
+  },
+  {
+   "capitulo": "8",
+   "codigo": "8.06",
+   "nombre": "Marcos y Estructuras Especiales"
+  },
+  {
+   "capitulo": "8",
+   "codigo": "8.07",
+   "nombre": "Escaleras"
+  },
+  {
+   "capitulo": "9",
+   "codigo": "9.01",
+   "nombre": "Cubiertas"
+  },
+  {
+   "capitulo": "9",
+   "codigo": "9.02",
+   "nombre": "Impermeabilizacion de loza"
+  },
+  {
+   "capitulo": "9",
+   "codigo": "9.03",
+   "nombre": "Cielos razos"
+  },
+  {
+   "capitulo": "9",
+   "codigo": "9.04",
+   "nombre": "Pergolas"
+  },
+  {
+   "capitulo": "9",
+   "codigo": "9.05",
+   "nombre": "Canoas"
+  },
+  {
+   "capitulo": "9",
+   "codigo": "9.06",
+   "nombre": "Lagrimales"
+  },
+  {
+   "capitulo": "9",
+   "codigo": "9.07",
+   "nombre": "Bajantes"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.01",
+   "nombre": "Acabados Cocina"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.02",
+   "nombre": "Acabados baños"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.03",
+   "nombre": "Acabados zona de Ropas"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.04",
+   "nombre": "Urbanismo (Parqueadrro, grama y vias de acceso)"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.05",
+   "nombre": "Acabados Mascotas"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.06",
+   "nombre": "Porton de ingreso a lote"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.07",
+   "nombre": "Cerramiento"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.08",
+   "nombre": "Zona Recreativa"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.01",
+   "nombre": "Equipos de cocina"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.02",
+   "nombre": "Jacuzzi"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.03",
+   "nombre": "Turco"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.04",
+   "nombre": "Sauna"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.05",
+   "nombre": "Chimenera a gas"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.06",
+   "nombre": "Chimenea a leña"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.07",
+   "nombre": "BBQ"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.08",
+   "nombre": "Puerta Vehicular"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.09",
+   "nombre": "Calentadores"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.10",
+   "nombre": "Red de eguridad, alarmas y video"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "12",
+   "codigo": "12.01",
+   "nombre": "Parqueadero"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.01",
+   "nombre": "Gastos Bancarios"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.02",
+   "nombre": "Residente de Obra"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.03",
+   "nombre": "EPM"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.04",
+   "nombre": "Refrigerios personal"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.05",
+   "nombre": "Transporte Personal"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.06",
+   "nombre": "Seguridad y Salud en el Trabajo"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.07",
+   "nombre": "XXX"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.01",
+   "nombre": "Peajes"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.02",
+   "nombre": "Combustible"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.03",
+   "nombre": "Seguros"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.04",
+   "nombre": "Nomina"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.05",
+   "nombre": "ServiciosContabilidad"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.06",
+   "nombre": "ServiciosTecnología"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.07",
+   "nombre": "Asesoríalegal"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.08",
+   "nombre": "Impuestos"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.09",
+   "nombre": "Mantenimientodelcarro"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.10",
+   "nombre": "Alimentacion"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.11",
+   "nombre": "SeguridadSocial"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.12",
+   "nombre": "Otrasasesorias"
+  },
+  {
+   "capitulo": "15",
+   "codigo": "15.01",
+   "nombre": "Alimentacion"
+  },
+  {
+   "capitulo": "15",
+   "codigo": "15.02",
+   "nombre": "Seguros"
+  },
+  {
+   "capitulo": "66",
+   "codigo": "66.01",
+   "nombre": "SIN IDENTIFICAR"
+  },
+  {
+   "capitulo": "13",
+   "codigo": "13.08",
+   "nombre": "Reunionesvarias"
+  },
+  {
+   "capitulo": "10",
+   "codigo": "10.09",
+   "nombre": "Aseogeneral dela Obra"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.11",
+   "nombre": "Estanterias Metalicas"
+  },
+  {
+   "capitulo": "11",
+   "codigo": "11.12",
+   "nombre": "Aire acondicionado"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.13",
+   "nombre": "Sistema SGSST"
+  },
+  {
+   "capitulo": "15",
+   "codigo": "15.03",
+   "nombre": "Entretenimiento"
+  },
+  {
+   "capitulo": "15",
+   "codigo": "15.04",
+   "nombre": "Familiar"
+  },
+  {
+   "capitulo": "15",
+   "codigo": "15.05",
+   "nombre": "Compras"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.14",
+   "nombre": "Celulares"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.15",
+   "nombre": "Tramites Corporativos"
+  },
+  {
+   "capitulo": "14",
+   "codigo": "14.16",
+   "nombre": "Insumos"
+  }
+ ]
+}

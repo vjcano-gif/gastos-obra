@@ -1,0 +1,37 @@
+name: Importar matriz histórica de Excel
+
+# Se lanza a mano: es una carga puntual, no algo periódico.
+# El archivo .xlsx se sube al repo (o a una rama) y se indica su ruta.
+on:
+  workflow_dispatch:
+    inputs:
+      archivo:
+        description: "Ruta del .xlsx dentro del repo"
+        required: true
+        default: "datos/MATRIZ Movimientos Contables.xlsx"
+      simular:
+        description: "Simular (no escribe nada en la base)"
+        type: boolean
+        default: true
+
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Importar
+        env:
+          # Sin esto Python bufferiza la salida al no haber terminal y el
+          # log aparece vacío hasta que el proceso termina — ya nos pasó.
+          PYTHONUNBUFFERED: "1"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APP_USER_ID: ${{ secrets.APP_USER_ID }}
+        run: |
+          python -u -m worker.importar_matriz "${{ inputs.archivo }}" \
+            ${{ inputs.simular && '--simular' || '' }}

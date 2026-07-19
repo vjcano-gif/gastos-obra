@@ -14,6 +14,9 @@ beautifulsoup4>=4.12
 # visor del navegador no es confiable dentro del sandbox de Streamlit).
 pymupdf>=1.24
 pypdf>=4.2
+# openpyxl: importar el Excel historico de la constructora (worker) y
+# exportar los informes por proyecto.
+openpyxl>=3.1
 fpdf2>=2.7
 truststore>=0.9
 requests>=2.32

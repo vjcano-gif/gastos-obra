@@ -22,6 +22,12 @@ workspace, que puede invitar a su equipo a compartir los mismos datos.
    la app falla con "permission denied" aunque el RLS esté perfecto.
    A partir de 009 el rol `lector` deja de poder escribir, y 011 agrega el
    rol `aprobador` + la auditoría de cambios.
+   **013–017 traen el modelo real de la constructora**: cortes de obra,
+   %AIU y comisión, pagador heredado del proyecto, anticipos del cliente,
+   presupuesto semanal, el rol `cliente` y la trazabilidad del histórico
+   importado. Van en orden y **la 016 debe correrse completa**: es la que
+   cierra el acceso del cliente a las facturas (sin ella, un cliente
+   invitado vería todas las obras).
    En Authentication → Users → crear el usuario dueño (correo + contraseña).
    Copiar: URL del proyecto, `anon key`, `service_role key` y el UUID del usuario.
 2. **Google Cloud**: reutilizar el proyecto OAuth existente; agregar el correo del
@@ -64,6 +70,53 @@ workspace, que puede invitar a su equipo a compartir los mismos datos.
    página **Usuarios** de la app, el dueño lo vincula a su mismo workspace.
    Si alguien olvida su contraseña, se la restablece el dueño desde ese
    mismo panel de Supabase.
+
+## El modelo de la constructora (cortes, AIU, cash flow)
+
+El sistema replica el archivo que llevan hoy en Excel. Cuatro conceptos:
+
+- **Corte de obra**: periodo de ejecución (normalmente mensual) con fechas
+  propias por proyecto. Es el eje de todos sus informes: capítulo × corte,
+  cash flow por corte. Si el corte tiene fechas, **cada factura cae sola en
+  el suyo** — una columna menos que digitar.
+- **%AIU**: vive en el proyecto y es la base de la comisión de Espacios. Se
+  calcula por separado sobre los gastos y sobre los pagos directos del
+  cliente, porque el pago directo genera comisión pero no sale de la caja.
+  Una factura marcada *exenta de AIU* no entra en la base.
+- **Pagador**: se define al crear el proyecto (Espacios / Cliente / Mixto).
+  Solo el modo *mixto* obliga a indicarlo factura por factura.
+- **Cash flow**: `caja final = caja inicial + anticipos − subtotal`, donde
+  `subtotal = gastos + AIU gastos + AIU pagos directos + GMF + otros`. El
+  saldo se encadena de un corte al siguiente. Verificado contra los cortes
+  1 y 2 de Casa Vieja 61 en `tests/test_cash_flow.py`.
+
+**Módulo del cliente**: un usuario con rol `cliente` queda amarrado a un
+proyecto y solo entra a *Cash Flow del proyecto*: sus anticipos, el costo
+por capítulo y corte, y su caja. No ve proveedores, facturas individuales,
+evidencia ni las otras obras — lo garantiza el RLS de la migración 016, no
+la interfaz.
+
+## Importar el histórico de Excel
+
+Su matriz tiene ~2.359 movimientos, la mayoría ya clasificados a mano.
+`worker/importar_matriz.py` los cruza contra las facturas que ya llegaron
+por Gmail (por número + NIT, número + valor o número + proveedor) y
+**hereda la clasificación sin pisar nada**: si algo ya estaba clasificado
+en la app, esa decisión manda. Ante cualquier ambigüedad no empareja —
+heredar mal es peor que dejar vacío, porque nadie lo revisa después.
+
+Lo que nunca tuvo factura electrónica (papel, cuenta de cobro, nómina)
+entra como movimiento propio con `fuente='matriz'` y confianza baja, para
+que el costo del proyecto cuadre. Todo queda marcado con su fila de origen,
+así que la importación es reejecutable y reversible.
+
+Se lanza desde GitHub → Actions → "Importar matriz histórica", **primero
+con `simular` activado** para ver el informe sin escribir nada.
+
+Antes de importar, carga el catálogo de obra desde Configuración →
+Capítulos → "Cargar el catálogo de obra": son sus 17 capítulos y 154
+actividades con la numeración que ya usan. Sin eso no hay con qué
+emparejar la clasificación.
 
 ## Reglas de negocio clave
 

@@ -17,11 +17,13 @@ jobs:
       # pytest NO va en requirements.txt: eso lo instalaria tambien en
       # produccion (Streamlit Cloud) sin necesidad. Es dependencia solo
       # del CI. Antes faltaba del todo y el "|| script" lo enmascaraba.
-      - run: pip install pytest
+      # pglast es el parser REAL de PostgreSQL (libpg_query): valida las
+      # migraciones sin necesitar servidor. Solo hace falta en el CI.
+      - run: pip install pytest pglast
       - name: Compilar todos los módulos
         run: |
           python -m compileall -q worker app
-          python -c "from worker import config, dian_xml, retenciones, storage, pdf_evidencia, clasificador, sync"
-      - name: Pruebas unitarias (retenciones y OCR)
+          python -c "from worker import config, dian_xml, retenciones, storage, pdf_evidencia, clasificador, sync, matriz, importar_matriz"
+      - name: Pruebas (retenciones, OCR, AIU, cash flow, cruce y migraciones)
         # sin fallback: el "||" anterior dejaba el CI verde aunque pytest fallara
         run: python -m pytest tests/ -q

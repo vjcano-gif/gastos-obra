@@ -40,6 +40,19 @@ opciones_act = {"— sin actividad —": None} | (
 )
 opciones_res = {"— sin residente —": None} | ({r["nombre"]: r["id"] for _, r in res.iterrows()} if not res.empty else {})
 
+cortes = db.cortes(sb, uid)
+nombre_corte = {c["id"]: c["nombre"] for _, c in cortes.iterrows()} if not cortes.empty else {}
+# Quién paga se hereda del proyecto; solo el modo 'mixto' obliga a digitarlo.
+modo_pagador = (
+    {r["id"]: (r.get("pagador_modo") or "espacios") for _, r in pr.iterrows()}
+    if not pr.empty
+    else {}
+)
+# El %AIU es del contrato, así que vive en el proyecto y de ahí sale la comisión.
+pct_aiu = (
+    {r["id"]: (r.get("pct_aiu") or 0) for _, r in pr.iterrows()} if not pr.empty else {}
+)
+
 nombre_pr = {v: k for k, v in opciones_pr.items() if v}
 nombre_tg = {v: k for k, v in opciones_tg.items() if v}
 nombre_cap = {v: k for k, v in opciones_cap.items() if v}
@@ -185,19 +198,63 @@ if not fx.empty:
                         capitulo = st.selectbox("Capítulo", list(opciones_cap), key=f"cap{f['id']}")
                         actividad = st.selectbox("Actividad", list(opciones_act), key=f"act{f['id']}")
                     # Los vacíos llegan de pandas como NaN (que es "truthy" y no
-                    # está en la lista) — no basta con `or ""`, hay que validar
-                    # pertenencia antes del .index() o revienta con ValueError.
-                    metodo_ops = ["", "TC", "TD", "contado", "transferencia"]
-                    metodo_actual = f.get("metodo_pago")
-                    metodo = st.selectbox(
-                        "Método de pago", metodo_ops, key=f"met{f['id']}",
-                        index=metodo_ops.index(metodo_actual if metodo_actual in metodo_ops else ""),
+                    # está en la lista): db.indice_de() lo ataja.
+                    m1, m2 = st.columns(2)
+                    metodo_ops = db.opciones(db.METODOS_PAGO)
+                    metodo = m1.selectbox(
+                        "Medio de pago", metodo_ops, key=f"met{f['id']}",
+                        index=db.indice_de(metodo_ops, f.get("metodo_pago")),
+                        format_func=lambda v: db.etiqueta(db.METODOS_PAGO, v) or "—",
                     )
-                    pagador_ops = ["", "empresa", "cliente"]
-                    pagador_actual = f.get("pagador")
-                    pagador = st.selectbox(
-                        "Quién paga", pagador_ops, key=f"pag{f['id']}",
-                        index=pagador_ops.index(pagador_actual if pagador_actual in pagador_ops else ""),
+                    forma_ops = db.opciones(db.FORMAS_PAGO)
+                    forma = m2.selectbox(
+                        "Forma de pago", forma_ops, key=f"fpa{f['id']}",
+                        index=db.indice_de(forma_ops, f.get("forma_pago")),
+                        format_func=lambda v: db.etiqueta(db.FORMAS_PAGO, v) or "—",
+                    )
+
+                    # El corte se deduce de la fecha de emisión y del proyecto;
+                    # solo se muestra para corregirlo cuando haga falta.
+                    corte_ops = {"— automático por fecha —": None} | {
+                        c["nombre"]: c["id"]
+                        for _, c in cortes.iterrows()
+                        if c["proyecto_id"] == opciones_pr[proy]
+                    }
+                    corte_nom = st.selectbox(
+                        "Corte de obra", list(corte_ops), key=f"cor{f['id']}",
+                        index=db.indice_de(
+                            list(corte_ops), nombre_corte.get(f.get("corte_id"))
+                        ),
+                    )
+
+                    # Quién paga se hereda del proyecto salvo que sea mixto:
+                    # así Nadia no digita lo mismo en cada factura de una obra.
+                    modo = modo_pagador.get(opciones_pr[proy], "espacios")
+                    if modo == "mixto":
+                        pagador_ops = db.opciones(db.PAGADOR)
+                        pagador = st.selectbox(
+                            "Quién paga", pagador_ops, key=f"pag{f['id']}",
+                            index=db.indice_de(pagador_ops, f.get("pagador")),
+                            format_func=lambda v: db.etiqueta(db.PAGADOR, v) or "—",
+                        )
+                    else:
+                        pagador = "empresa" if modo == "espacios" else "cliente"
+                        st.caption(
+                            f"Quién paga: **{db.etiqueta(db.PAGADOR, pagador)}** "
+                            "(heredado del proyecto)"
+                        )
+
+                    e1, e2 = st.columns(2)
+                    legal_ops = db.opciones(db.LEGALIZACION)
+                    legalizacion = e1.selectbox(
+                        "Legalización", legal_ops, key=f"leg{f['id']}",
+                        index=db.indice_de(legal_ops, f.get("legalizacion")),
+                        format_func=lambda v: db.etiqueta(db.LEGALIZACION, v) or "—",
+                    )
+                    exento = e2.checkbox(
+                        "Exenta de AIU", key=f"aiu{f['id']}",
+                        value=bool(f.get("exento_aiu")),
+                        help="Se excluye de la base sobre la que se calcula la comisión.",
                     )
                     concepto_actual = f.get("concepto")
                     concepto = st.text_input(
@@ -209,11 +266,23 @@ if not fx.empty:
                         "✅ Aprobar", use_container_width=True, disabled=not puede_aprobar
                     )
                     if guardar or aprobar:
+                        proyecto_id = opciones_pr[proy]
+                        # Si no lo eligieron a mano, el corte sale de la fecha.
+                        corte_id = corte_ops[corte_nom] or db.corte_de_fecha(
+                            cortes, proyecto_id, f.get("fecha_emision")
+                        )
                         cambios = {
-                            "proyecto_id": opciones_pr[proy],
+                            "proyecto_id": proyecto_id,
                             "residente_id": opciones_res[residente],
+                            "corte_id": corte_id,
                             "metodo_pago": metodo or None,
+                            "forma_pago": forma or None,
                             "pagador": pagador or None,
+                            "legalizacion": legalizacion or None,
+                            "exento_aiu": exento,
+                            "comision_aiu": db.comision(
+                                f, exento, pct_aiu.get(proyecto_id, 0)
+                            ),
                             "concepto": concepto or None,
                             "estado": "aprobada" if aprobar else "asignada",
                             "posible_duplicado_de": None,

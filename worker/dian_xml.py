@@ -21,11 +21,12 @@ IMPUESTOS = {"01": "iva", "04": "impoconsumo", "05": "reteiva", "06": "retefuent
 # electrónica colombiana -> nuestras categorías de metodo_pago. Lo que no
 # está en este mapa se deja sin auto-llenar (mejor vacío que adivinar mal).
 MEDIOS_PAGO_DIAN = {
-    "10": "contado",       # efectivo
-    "42": "transferencia", # consignación / transferencia bancaria
-    "47": "transferencia", # débito a cuenta
-    "48": "TC",            # tarjeta de crédito
-    "49": "TD",            # tarjeta débito
+    "10": "efectivo",         # efectivo
+    "20": "cheque",           # cheque
+    "42": "transferencia",    # consignación / transferencia bancaria
+    "47": "transferencia",    # débito a cuenta
+    "48": "tarjeta_credito",
+    "49": "tarjeta_debito",
 }
 
 
