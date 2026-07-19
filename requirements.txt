@@ -9,6 +9,9 @@ google-auth-oauthlib>=1.2
 xmltodict>=0.13
 lxml>=5.2
 beautifulsoup4>=4.12
+# pymupdf lo usan LOS DOS: el worker para el OCR de facturas escaneadas y
+# la app para previsualizar el PDF (se rasteriza en el servidor porque el
+# visor del navegador no es confiable dentro del sandbox de Streamlit).
 pymupdf>=1.24
 pypdf>=4.2
 fpdf2>=2.7
