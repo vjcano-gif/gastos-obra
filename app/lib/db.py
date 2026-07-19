@@ -1153,13 +1153,23 @@ def instalar_catalogo_obra(sb, uid) -> dict:
 
     for act in cat["actividades"]:
         cap_id = ids_cap.get(act["capitulo"])
-        actual = act_codigo.get(act["codigo"]) or act_nombre.get((cap_id, _norm(act["nombre"])))
+        actual = (act["codigo"] and act_codigo.get(act["codigo"])) or act_nombre.get(
+            (cap_id, _norm(act["nombre"]))
+        )
         fila = {"nombre": act["nombre"], "codigo": act["codigo"], "capitulo_id": cap_id}
         if actual:
             sb.table("actividades").update(fila).eq("id", actual).execute()
             resumen["actividades_actualizadas"] += 1
         else:
-            sb.table("actividades").insert({"user_id": uid, **fila}).execute()
+            r = sb.table("actividades").insert({"user_id": uid, **fila}).execute()
+            # El indice en memoria se actualiza DURANTE el bucle: si el
+            # catalogo trajera dos veces el mismo nombre en un capitulo, la
+            # segunda pasada debe encontrar la fila recien creada y
+            # actualizarla, no chocar contra el unique de la base. Paso con
+            # el 12.01 repetido de URBANISMO y dejo la carga a medias.
+            act_nombre[(cap_id, _norm(act["nombre"]))] = r.data[0]["id"]
+            if act["codigo"]:
+                act_codigo[act["codigo"]] = r.data[0]["id"]
             resumen["actividades_nuevas"] += 1
     return resumen
 
