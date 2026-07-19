@@ -104,15 +104,25 @@ else:
                 marker_color="#D85A30",
                 text=resumen["cantidad"].astype(int),
                 texttemplate="%{text}",
+                textposition="outside",
             )
         )
         fig_cant.update_layout(title="Documentos por estado (cantidad)", height=320, margin=dict(t=40))
         st.plotly_chart(fig_cant, use_container_width=True)
     with cg2:
+        # Barras con % en la etiqueta, no torta: los estados se comparan
+        # mejor en barras (regla de visualización de toda la app).
+        total_monto = resumen["monto"].sum() or 1
         fig_monto = go.Figure(
-            go.Pie(labels=[ETIQUETAS_ESTADO[e] for e in ORDEN_ESTADOS], values=resumen["monto"], hole=0.5)
+            go.Bar(
+                x=[ETIQUETAS_ESTADO[e] for e in ORDEN_ESTADOS],
+                y=resumen["monto"],
+                marker_color="#1D9E75",
+                text=[f"{db.cop(m)}<br>{m / total_monto * 100:.0f}%" for m in resumen["monto"]],
+                textposition="outside",
+            )
         )
-        fig_monto.update_layout(title="Monto por estado (%)", height=320, margin=dict(t=40))
+        fig_monto.update_layout(title="Monto por estado", height=320, margin=dict(t=40), yaxis_title="COP")
         st.plotly_chart(fig_monto, use_container_width=True)
 
     st.divider()

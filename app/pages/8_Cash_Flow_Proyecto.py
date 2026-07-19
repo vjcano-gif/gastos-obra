@@ -11,7 +11,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from lib import db
+from lib import db, viz
 
 st.set_page_config(page_title="Cash Flow del proyecto", page_icon="💧", layout="wide")
 sb, uid = db.requiere_sesion()
@@ -154,12 +154,8 @@ else:
                              "Part. %": "{:.1f}%"}),
         use_container_width=True,
     )
-    st.plotly_chart(
-        px.bar(
-            matriz.reset_index().head(15),
-            x="Total", y="capitulo", orientation="h",
-            labels={"capitulo": "", "Total": "Costo"},
-            title="Capítulos con mayor costo",
-        ),
-        use_container_width=True,
-    )
+    # Barras con etiqueta de dato (no px sin etiqueta), de menor a mayor
+    # para que la más alta quede arriba.
+    top = matriz.reset_index().head(15).sort_values("Total")
+    st.caption("Capítulos con mayor costo")
+    viz.barras(top["capitulo"], top["Total"], key="cf_cap_bar")

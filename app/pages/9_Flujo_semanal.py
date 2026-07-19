@@ -60,9 +60,17 @@ with tab_comparar:
                 delta_color="inverse",
             )
 
+            # Etiquetas compactas (12M) para no saturar cuando hay muchas
+            # semanas; las que se pisen se ocultan solas (uniformtext).
+            def _compacto(v):
+                v = float(v or 0)
+                return f"{v/1e6:.0f}M" if abs(v) >= 1e6 else (f"{v/1e3:.0f}k" if v else "")
+
             fig = go.Figure()
-            fig.add_bar(x=comparacion["periodo"], y=comparacion["planeado"], name="Planeado")
-            fig.add_bar(x=comparacion["periodo"], y=comparacion["real"], name="Ejecutado")
+            fig.add_bar(x=comparacion["periodo"], y=comparacion["planeado"], name="Planeado",
+                        text=[_compacto(v) for v in comparacion["planeado"]], textposition="outside")
+            fig.add_bar(x=comparacion["periodo"], y=comparacion["real"], name="Ejecutado",
+                        text=[_compacto(v) for v in comparacion["real"]], textposition="outside")
             fig.add_scatter(
                 x=comparacion["periodo"], y=comparacion["planeado_acum"],
                 name="Planeado acumulado", mode="lines", yaxis="y2",
@@ -75,6 +83,7 @@ with tab_comparar:
                 barmode="group",
                 yaxis2=dict(overlaying="y", side="right", title="Acumulado"),
                 xaxis_title="Semana", yaxis_title="Pesos de la semana",
+                uniformtext_minsize=8, uniformtext_mode="hide",
             )
             st.plotly_chart(fig, use_container_width=True)
 
