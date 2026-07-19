@@ -49,6 +49,10 @@ ESTADO_PAGO = {
     "parcialmente pagada": "parcial",
     "anulada": "anulada",
 }
+# Solo estos cuentan como deuda. Una fila sin estado marcado se toma como
+# PAGADA (el usuario confirmo que las que no tienen estado ya estan
+# pagadas), no como pendiente: si no, su Saldo Calculado inflaria la deuda.
+PENDIENTES = {"pendiente", "pendiente_reporte", "parcial"}
 
 FORMA_PAGO = {
     "contado": "contado",
@@ -176,7 +180,8 @@ def leer_gastos(hoja) -> list[dict]:
                 "retenciones": a_numero(fila[COL["retenciones"]]),
                 "iva": a_numero(fila[COL["iva"]]),
                 "forma_pago": _mapear(FORMA_PAGO, fila[COL["forma_pago"]]),
-                "estado_pago": _mapear(ESTADO_PAGO, fila[COL["estado"]], "pendiente"),
+                # sin estado marcado -> pagada (confirmado por el usuario)
+                "estado_pago": _mapear(ESTADO_PAGO, fila[COL["estado"]], "pagada"),
                 "metodo_pago": _mapear(MEDIO_PAGO, fila[COL["medio_pago"]]),
                 "pagador": _mapear(PAGADOR, fila[COL["pagador"]]),
                 "legalizacion": _mapear(
@@ -188,7 +193,14 @@ def leer_gastos(hoja) -> list[dict]:
                 "concepto_pago": str(fila[COL["concepto"]] or "").strip() or None,
                 "fecha_pago": a_fecha(fila[COL["fecha_pago"]]),
                 "valor_pagado": a_numero(fila[COL["valor_pagado"]]) + a_numero(fila[COL["valor_pagado2"]]),
-                "saldo": a_numero(fila[COL["saldo"]]),
+                # El saldo solo cuenta si el estado dice que sigue pendiente;
+                # una fila pagada tiene saldo 0 aunque su "Saldo Calculado"
+                # traiga un valor residual.
+                "saldo": (
+                    a_numero(fila[COL["saldo"]])
+                    if _mapear(ESTADO_PAGO, fila[COL["estado"]], "pagada") in PENDIENTES
+                    else 0.0
+                ),
             }
         )
     return filas

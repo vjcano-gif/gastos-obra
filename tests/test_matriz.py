@@ -203,3 +203,27 @@ if __name__ == "__main__":
         if nombre.startswith("test_"):
             fn()
             print("OK  ", nombre)
+
+
+# --- saldo: solo cuenta si el estado dice pendiente ----------------------
+def _fila_matriz(estado, saldo, ncols=51):
+    """Fila cruda de MATRIZ GASTOS con estado (col 31) y saldo (col 46)."""
+    f = [None] * ncols
+    f[1] = "Casa Vieja 61"          # proyecto (para que no se descarte)
+    f[31] = estado
+    f[46] = saldo
+    return f
+
+
+def test_saldo_solo_si_esta_pendiente():
+    filas = [
+        _fila_matriz("Pendiente de Pago", 1000),
+        _fila_matriz("Parcialmente Pagada", 500),
+        _fila_matriz("Pagada", 9999),       # residual: NO es deuda
+        _fila_matriz("", 72000000),         # sin estado = pagada = sin deuda
+        _fila_matriz("Anulada", 300),
+    ]
+    g = matriz.leer_gastos(iter([["encabezado"] + [None] * 50] + filas))
+    saldos = [x["saldo"] for x in g]
+    assert saldos == [1000, 500, 0, 0, 0]
+    assert g[3]["estado_pago"] == "pagada"   # el vacio quedo como pagada
