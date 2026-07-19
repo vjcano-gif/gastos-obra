@@ -73,10 +73,10 @@ cuerpo = [
 ]
 if not fx.empty:
     for _, f in fx.head(30).iterrows():
-        signo = "+" if f["sentido"] == "ingreso" else "-"
+        signo = "+" if f.get("sentido") == "ingreso" else "-"
         cuerpo.append(
-            f"  {f.get('fecha_emision') or 's.f.'}  {signo}{db.cop(abs(f['monto_efectivo']))}  "
-            f"{(f.get('proveedor_nombre') or f.get('descripcion') or '')[:60]}"
+            f"  {db.texto(f.get('fecha_emision'), 's.f.')}  {signo}{db.cop(abs(f['monto_efectivo']))}  "
+            f"{(db.texto(f.get('proveedor_nombre')) or db.texto(f.get('descripcion')))[:60]}"
         )
 texto = "\n".join(cuerpo)
 

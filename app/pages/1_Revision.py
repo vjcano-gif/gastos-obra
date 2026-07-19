@@ -138,17 +138,18 @@ if not fx.empty:
 
     st.caption("Ordenadas por llegada: las más recientes primero.")
     for _, f in fx.head(100).iterrows():
-        icono = "🟢" if f["sentido"] == "ingreso" else "🔴"
+        icono = "🟢" if f.get("sentido") == "ingreso" else "🔴"
         alerta = " ⚠️ posible duplicado" if f.get("posible_duplicado_de") else ""
         baja = " 🔍 confianza baja" if f.get("confianza") == "baja" else ""
-        numero_doc = f.get("numero") or "s.n."
+        numero_doc = db.texto(f.get("numero"), "s.n.")
+        proveedor = db.texto(f.get("proveedor_nombre"), "Sin nombre")[:45]
         # La fecha de llegada al lado de la de emisión: confirma que entró hoy.
         llegada = f.get("_llegada")
         sello = f" · llegó {llegada.date()}" if pd.notna(llegada) else ""
         titulo = (
-            f"{icono} {f.get('fecha_emision') or 's.f.'} · "
-            f"{(f.get('proveedor_nombre') or 'Sin nombre')[:45]} · N.° {numero_doc} · {db.cop(f['total'])} · "
-            f"{f['estado']}{alerta}{baja}{sello}"
+            f"{icono} {db.texto(f.get('fecha_emision'), 's.f.')} · "
+            f"{proveedor} · N.° {numero_doc} · {db.cop(f['total'])} · "
+            f"{db.texto(f.get('estado'))}{alerta}{baja}{sello}"
         )
         with st.expander(titulo):
             items_f = db.factura_items(sb, f["id"])

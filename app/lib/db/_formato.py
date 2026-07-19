@@ -21,6 +21,18 @@ def cop(v) -> str:
         return "-"
 
 
+def texto(valor, defecto: str = "") -> str:
+    """Texto seguro para títulos y etiquetas.
+
+    `valor or defecto` NO sirve cuando el dato viene de pandas: el NaN es
+    "truthy", así que pasa el `or` y luego revienta al cortarlo ([:45]) o
+    formatearlo. Pasó en Revisión con facturas importadas de la matriz sin
+    nombre de proveedor. `pd.isna` cubre None y NaN por igual."""
+    if valor is None or (isinstance(valor, float) and pd.isna(valor)):
+        return defecto
+    return str(valor)
+
+
 def render_factura_html(f: dict, items: pd.DataFrame) -> str:
     """Representación visual de la factura a partir de los datos YA
     extraídos (no del XML crudo, que no es legible para un humano)."""

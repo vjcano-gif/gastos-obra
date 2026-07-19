@@ -60,8 +60,8 @@ st.subheader("Detalle y registro de pagos")
 for _, f in pend.sort_values("dias").head(80).iterrows():
     marca = "🔴" if f["dias"] < 0 else ("🟡" if f["dias"] <= 15 else "🟢")
     with st.expander(
-        f"{marca} vence {f.get('fecha_vencimiento') or 's.f.'} · "
-        f"{(f.get('proveedor_nombre') or '')[:40]} · saldo {db.cop(f['saldo'])}"
+        f"{marca} vence {db.texto(f.get('fecha_vencimiento'), 's.f.')} · "
+        f"{db.texto(f.get('proveedor_nombre'))[:40]} · saldo {db.cop(f['saldo'])}"
     ):
         st.caption(
             f"Total {db.cop(f['monto_efectivo'])} · abonado {db.cop(f['abonado'])} · "

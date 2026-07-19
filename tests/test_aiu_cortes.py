@@ -151,3 +151,17 @@ if __name__ == "__main__":
         if nombre.startswith("test_"):
             fn()
             print("OK  ", nombre)
+
+
+# --- texto seguro contra el NaN de pandas (bug real en Revision) ----------
+def test_texto_seguro_maneja_nan_y_none():
+    """`valor or defecto` fallaba con el NaN de pandas (es "truthy") y
+    reventaba al cortar el string. db.texto lo cubre."""
+    import math
+    assert db.texto(None, "Sin nombre") == "Sin nombre"
+    assert db.texto(float("nan"), "Sin nombre") == "Sin nombre"
+    assert db.texto(math.nan, "s.n.") == "s.n."
+    assert db.texto("Ferreteria Corona") == "Ferreteria Corona"
+    assert db.texto(123) == "123"
+    # lo que rompia en produccion: cortar el resultado
+    assert db.texto(float("nan"), "Sin nombre")[:45] == "Sin nombre"
