@@ -109,10 +109,7 @@ if filas_sel:
 
     docs = db.df(sb.table("documentos").select("*").eq("factura_id", fila["factura_id"]).execute())
     for _, d in docs.iterrows():
-        url = db.url_documento(sb, d["storage_path"])
-        if url:
-            nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
-            st.markdown(f"📄 [⬇️ Descargar {nombre_doc}]({url})")
+        db.mostrar_documento(sb, d)
 
     with st.form("editar_detalle"):
         if fila["item_id"] is not None:

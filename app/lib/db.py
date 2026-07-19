@@ -518,6 +518,77 @@ def url_documento(sb, storage_path: str, minutos: int = 10) -> str | None:
         return None
 
 
+@st.cache_data(ttl=900, show_spinner=False, max_entries=40)
+def paginas_pdf(_sb, storage_path: str, max_paginas: int = 5) -> list[bytes]:
+    """Convierte el PDF a imágenes PNG en el servidor.
+
+    Mostrar el PDF con un <iframe> obliga a que el visor de PDF del
+    navegador funcione dentro del sandbox de Streamlit Cloud, y eso NO se
+    cumple siempre: depende del navegador, de su versión y de si el
+    usuario tiene el visor desactivado — en móvil falla casi siempre.
+    Se veía el ícono de documento roto aunque el archivo estuviera
+    perfecto (verificado: 43 KB, cabecera %PDF-1.4, sin cabeceras que
+    bloqueen el encuadre).
+
+    Rasterizar aquí elimina esa dependencia: al navegador le llega una
+    imagen, y una imagen la pinta cualquiera. El enlace de descarga del
+    PDF original se mantiene aparte para quien necesite el archivo.
+
+    El `_sb` va con guion bajo para que Streamlit no intente serializar
+    el cliente al calcular la clave del caché.
+    """
+    try:
+        contenido = _sb.storage.from_("documentos").download(storage_path)
+    except Exception:
+        return []
+
+    import fitz
+
+    imagenes = []
+    try:
+        with fitz.open(stream=contenido, filetype="pdf") as doc:
+            for pagina in doc[:max_paginas]:
+                # 144 dpi: se lee bien un número de factura sin inflar la
+                # página con imágenes de varios MB.
+                imagenes.append(pagina.get_pixmap(dpi=144).tobytes("png"))
+    except Exception:
+        return []
+    return imagenes
+
+
+def mostrar_documento(sb, d) -> None:
+    """Enlace de descarga + previsualización del documento, en la misma
+    pantalla (sin abrir otra pestaña). Lo usan Revisión y Todas las
+    facturas: una sola implementación, mismo comportamiento en ambas."""
+    url = url_documento(sb, d["storage_path"])
+    nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
+    mime_doc = str(d.get("mime", ""))
+
+    if url:
+        st.markdown(f"📄 [⬇️ Descargar original: {nombre_doc}]({url})")
+
+    if mime_doc.endswith("pdf"):
+        paginas = paginas_pdf(sb, d["storage_path"])
+        if paginas:
+            for n, png in enumerate(paginas, 1):
+                st.image(
+                    png,
+                    use_container_width=True,
+                    caption=f"Página {n} de {len(paginas)}" if len(paginas) > 1 else None,
+                )
+        elif url:
+            st.caption("No se pudo previsualizar el PDF; el enlace de descarga sí funciona.")
+    elif mime_doc.startswith("image/"):
+        # una foto de recibo NO es un XML: se muestra tal cual
+        if url:
+            st.image(url, use_container_width=True)
+    else:
+        st.caption(
+            "El archivo original es el XML técnico de la DIAN — la vista de arriba "
+            "ya muestra sus datos de forma legible. Descárgalo solo si necesitas el XML crudo."
+        )
+
+
 # ------------------------------------------------------------------ semillas
 TIPOS_OBRA = [
     ("Preliminares", "preliminares", "servicios"),

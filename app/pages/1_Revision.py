@@ -142,22 +142,7 @@ if not fx.empty:
                     sb.table("documentos").select("*").eq("factura_id", f["id"]).execute()
                 )
                 for _, d in docs.iterrows():
-                    url = db.url_documento(sb, d["storage_path"])
-                    if not url:
-                        continue
-                    nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
-                    mime_doc = str(d.get("mime", ""))
-                    st.markdown(f"📄 [⬇️ Descargar original: {nombre_doc}]({url})")
-                    if mime_doc.endswith("pdf"):
-                        st.iframe(url, height=500)
-                    elif mime_doc.startswith("image/"):
-                        # una foto de recibo NO es un XML: se muestra tal cual
-                        st.image(url, use_container_width=True)
-                    else:
-                        st.caption(
-                            "El archivo original es el XML técnico de la DIAN — la vista de arriba "
-                            "ya muestra sus datos de forma legible. Descárgalo solo si necesitas el XML crudo."
-                        )
+                    db.mostrar_documento(sb, d)
 
                 if not items_f.empty:
                     st.markdown("**Clasificación por artículo**")
