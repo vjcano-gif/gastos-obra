@@ -83,6 +83,67 @@ def test_items_de_ia_sin_items():
     assert _items_desde_ia({}) == []
 
 
+# --- red de seguridad contra el error de miles del OCR -----------------
+# Caso real detectado en pruebas: el modelo leyo "2.903.600" (punto de
+# miles colombiano) como 2903.6, un total MIL VECES menor. El prompt ya
+# lo advierte, pero esto es la defensa que no depende del modelo.
+
+
+def test_corrige_total_mil_veces_menor():
+    from worker.clasificador import _corregir_miles
+
+    datos = _corregir_miles(
+        {
+            "total": 2903.6,  # deberia ser 2903600
+            "iva": 463.6,
+            "items": [
+                {"descripcion": "Cemento", "total": 560000},
+                {"descripcion": "Varilla", "total": 1120000},
+                {"descripcion": "Arena", "total": 760000},
+            ],
+        }
+    )
+    assert datos["total"] == 2903600
+    assert datos["iva"] == 463600
+    assert datos["_correccion_miles"] is True
+
+
+def test_no_toca_un_total_correcto():
+    from worker.clasificador import _corregir_miles
+
+    datos = _corregir_miles(
+        {
+            "total": 2903600,
+            "iva": 463600,
+            "items": [{"descripcion": "Cemento", "total": 2440000}],
+        }
+    )
+    assert datos["total"] == 2903600
+    assert "_correccion_miles" not in datos
+
+
+def test_no_corrige_si_no_hay_evidencia():
+    """Sin articulos no hay con que contrastar: se deja como esta y lo
+    resuelve la revision humana, que es mejor que adivinar."""
+    from worker.clasificador import _corregir_miles
+
+    datos = _corregir_miles({"total": 2903.6, "iva": 463.6, "items": []})
+    assert datos["total"] == 2903.6
+    assert "_correccion_miles" not in datos
+
+
+def test_no_corrige_descuadre_pequeno():
+    """Un descuadre normal (propina, flete, redondeo) NO debe disparar la
+    correccion: solo el desfase de ~1000x."""
+    from worker.clasificador import _corregir_miles
+
+    datos = _corregir_miles(
+        {"total": 100000, "items": [{"descripcion": "algo", "total": 95000}]}
+    )
+    assert datos["total"] == 100000
+    assert "_correccion_miles" not in datos
+
+
 if __name__ == "__main__":
     for nombre, fn in sorted(globals().items()):
         if nombre.startswith("test_"):
