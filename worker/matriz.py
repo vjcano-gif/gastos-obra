@@ -36,6 +36,9 @@ COL = {
     "valor_bruto": 18, "descuento": 19, "iva": 20, "subtotal": 26,
     "retenciones": 27, "total_a_pagar": 29, "forma_pago": 30,
     "estado": 31, "medio_pago": 32, "pagador": 33, "legalizacion": 34,
+    "fecha_vencimiento": 36, "concepto": 37,
+    "fecha_pago": 41, "valor_pagado": 42, "valor_pagado2": 44,
+    "saldo": 46,  # "Saldo Calculado", el que ya trae la resta hecha
     "exento_aiu": 47, "pct_aiu": 48, "comision": 49,
 }
 
@@ -181,6 +184,11 @@ def leer_gastos(hoja) -> list[dict]:
                 ),
                 "exento_aiu": bool(fila[COL["exento_aiu"]]),
                 "comision": a_numero(fila[COL["comision"]]),
+                "fecha_vencimiento": a_fecha(fila[COL["fecha_vencimiento"]]),
+                "concepto_pago": str(fila[COL["concepto"]] or "").strip() or None,
+                "fecha_pago": a_fecha(fila[COL["fecha_pago"]]),
+                "valor_pagado": a_numero(fila[COL["valor_pagado"]]) + a_numero(fila[COL["valor_pagado2"]]),
+                "saldo": a_numero(fila[COL["saldo"]]),
             }
         )
     return filas
@@ -332,6 +340,19 @@ def cambios_heredables(fila: dict, factura: dict, ids: dict) -> dict:
 
     if fila.get("exento_aiu") and not factura.get("exento_aiu"):
         cambios["exento_aiu"] = True
+
+    # Datos de PAGO: se copian aunque el valor sea 0 (0 = pagada, es un dato
+    # valido, no "vacio"). Son la verdad de tesoreria de la matriz y en la
+    # factura de Gmail no existian; por eso se ponen siempre, no solo si
+    # faltan. Sin esto, "cuanto debo" quedaria sin fuente confiable.
+    if fila.get("saldo") is not None and factura.get("saldo") is None:
+        cambios["saldo"] = fila["saldo"]
+    if fila.get("valor_pagado") and not factura.get("valor_pagado"):
+        cambios["valor_pagado"] = fila["valor_pagado"]
+    if fila.get("fecha_pago") and not factura.get("fecha_pago"):
+        cambios["fecha_pago"] = fila["fecha_pago"].isoformat()
+    if fila.get("fecha_vencimiento") and not factura.get("fecha_vencimiento"):
+        cambios["fecha_vencimiento"] = fila["fecha_vencimiento"].isoformat()
     return cambios
 
 

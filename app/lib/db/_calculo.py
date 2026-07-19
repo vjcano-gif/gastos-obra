@@ -8,6 +8,58 @@ from ._conexion import TTL_LECTURA
 from ._lecturas import capitulos, detalle_clasificado, df, items_de_factura_ids
 
 
+ESTADOS_PENDIENTES = ("pendiente", "parcial", "pendiente_reporte")
+
+
+def con_saldo_pendiente(fx: pd.DataFrame) -> pd.DataFrame:
+    """Agrega la columna `saldo_pend` (lo que queda por pagar) y devuelve
+    SOLO las facturas que se deben. Base de "Cuentas por pagar".
+
+    Prioridad del saldo, de más confiable a menos:
+      1. `saldo` de la matriz (columna 018): el dato de tesorería real.
+      2. Si no hay saldo cargado pero el estado_pago dice pendiente:
+         total a pagar (neto de retención) menos lo abonado.
+    Ojo: se filtra por estado_PAGO (si se pagó), no por `estado` (el flujo
+    interno de revisión). Mezclarlos hacía que las 2.359 importadas —que la
+    matriz marca pagadas— aparecieran como deuda solo por estar en
+    'asignada'."""
+    if fx is None or fx.empty:
+        return pd.DataFrame()
+    d = fx.copy()
+    if "estado" in d:
+        d = d[d["estado"] != "anulada"]
+    if d.empty:
+        return d
+
+    def col_num(nombre, defecto=0.0):
+        """Columna numérica como Serie alineada; 0 si la columna no existe
+        (d.get devuelve un escalar en ese caso, que rompe las operaciones)."""
+        if nombre in d.columns:
+            return pd.to_numeric(d[nombre], errors="coerce").fillna(defecto)
+        return pd.Series([defecto] * len(d), index=d.index)
+
+    tiene_saldo = "saldo" in d.columns
+    ret = col_num("rete_fuente") + col_num("rete_iva") + col_num("rete_ica")
+    ret_xml = col_num("retenciones_xml")
+    base = col_num("monto_efectivo") if "monto_efectivo" in d.columns else col_num("total")
+    total_a_pagar = base - ret.where(ret > 0, ret_xml)
+
+    estado_pago = (
+        d["estado_pago"] if "estado_pago" in d.columns
+        else pd.Series(["pendiente"] * len(d), index=d.index)
+    )
+    por_estado = total_a_pagar.where(estado_pago.isin(ESTADOS_PENDIENTES), 0)
+
+    if tiene_saldo:
+        saldo = pd.to_numeric(d["saldo"], errors="coerce")
+        # donde hay saldo de la matriz mandala; donde es nulo, cae al estado
+        d["saldo_pend"] = saldo.where(saldo.notna(), por_estado)
+    else:
+        d["saldo_pend"] = por_estado
+
+    return d[d["saldo_pend"] > 0].copy()
+
+
 def base_aiu(factura, exento=None) -> float:
     """Base sobre la que se cobra la comision.
 

@@ -25,6 +25,86 @@ tg = db.tipos_gasto(sb, uid)
 cap = db.capitulos(sb, uid)
 act = db.actividades(sb, uid)
 res = db.residentes(sb, uid)
+cortes = db.cortes(sb, uid)
+
+vista = st.radio(
+    "Vista",
+    ["Por artículo (clasificar)", "Matriz (todas las columnas, por factura)"],
+    horizontal=True,
+)
+
+# ============================ VISTA MATRIZ: una fila por factura, todas las
+# columnas de la MATRIZ GASTOS del Excel (proveedor, montos, retenciones,
+# pago, AIU...). Es de solo lectura: para clasificar se usa la otra vista.
+if vista.startswith("Matriz"):
+    n_pr = dict(zip(pr["id"], pr["nombre"])) if not pr.empty else {}
+    n_cap = dict(zip(cap["id"], cap["nombre"])) if not cap.empty else {}
+    n_capcod = dict(zip(cap["id"], cap.get("codigo", cap["id"]))) if not cap.empty else {}
+    n_act = dict(zip(act["id"], act["nombre"])) if not act.empty else {}
+    n_cor = dict(zip(cortes["id"], cortes["nombre"])) if not cortes.empty else {}
+    n_aiu = dict(zip(pr["id"], pr.get("pct_aiu", pd.Series(dtype=float)))) if not pr.empty else {}
+
+    f = fx.copy()
+
+    def num(nombre):
+        """Columna numérica como Serie; 0 si la columna aún no existe
+        (p.ej. saldo/valor_pagado antes de correr la migración 018)."""
+        if nombre in f.columns:
+            return pd.to_numeric(f[nombre], errors="coerce").fillna(0)
+        return pd.Series([0.0] * len(f), index=f.index)
+
+    def fecha(nombre):
+        if nombre in f.columns:
+            return pd.to_datetime(f[nombre], errors="coerce").dt.date
+        return pd.Series([None] * len(f), index=f.index)
+
+    fe = pd.to_datetime(f["fecha_emision"], errors="coerce")
+    ret_calc = num("rete_fuente") + num("rete_iva") + num("rete_ica")
+    total = num("total")
+
+    m = pd.DataFrame({
+        "Proyecto": f["proyecto_id"].map(n_pr),
+        "Capítulo": f["capitulo_id"].map(n_capcod).astype(str) + " " + f["capitulo_id"].map(n_cap).fillna(""),
+        "Corte": f["corte_id"].map(n_cor),
+        "Actividad": f["actividad_id"].map(n_act),
+        "Fecha": fe.dt.date,
+        "Año": fe.dt.year,
+        "Mes": fe.dt.month,
+        "Proveedor": f["proveedor_nombre"],
+        "NIT": f.get("proveedor_nit"),
+        "Documento": f.get("tipo_documento"),
+        "N.°": f["numero"],
+        "Descripción": f.get("descripcion"),
+        "Valor bruto": num("valor_bruto"),
+        "Descuento": num("descuentos"),
+        "IVA": num("iva"),
+        "Excluido": num("excluidos"),
+        "Impoconsumo": num("impoconsumo"),
+        "Ajuste": num("ajuste"),
+        "Fletes/otros": num("cargos"),
+        "SUBTOTAL": total,
+        "Retenciones": ret_calc,
+        "TOTAL A PAGAR": total - ret_calc,
+        "Forma pago": f.get("forma_pago"),
+        "Estado pago": f.get("estado_pago"),
+        "Medio pago": f.get("metodo_pago"),
+        "Pagador": f.get("pagador"),
+        "Encima/Debajo": f.get("legalizacion"),
+        "Plazo": num("plazo_dias"),
+        "Vencimiento": fecha("fecha_vencimiento"),
+        "Concepto": f.get("concepto"),
+        "% Rete": (ret_calc / total.where(total != 0, 1) * 100).round(2),
+        "Fecha pago": fecha("fecha_pago"),
+        "Valor pagado": num("valor_pagado"),
+        "Saldo": num("saldo"),
+        "Exento AIU": f.get("exento_aiu"),
+        "% AIU": (f["proyecto_id"].map(n_aiu).astype(float) * 100).round(1),
+        "Comisión": pd.to_numeric(f.get("comision_aiu", 0), errors="coerce"),
+    })
+
+    st.caption(f"{len(m)} facturas · todas las columnas de la MATRIZ GASTOS. Descarga con el ícono de la esquina.")
+    st.dataframe(m, use_container_width=True, hide_index=True, height=560)
+    st.stop()
 
 opciones_pr = {"— sin proyecto —": None} | ({r["nombre"]: r["id"] for _, r in pr.iterrows()} if not pr.empty else {})
 opciones_tg = {"— sin tipo —": None} | ({r["nombre"]: r["id"] for _, r in tg.iterrows()} if not tg.empty else {})

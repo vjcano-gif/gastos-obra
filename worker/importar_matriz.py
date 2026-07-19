@@ -238,6 +238,11 @@ class Importador:
                     "legalizacion": fila.get("legalizacion"),
                     "exento_aiu": fila.get("exento_aiu", False),
                     "estado_pago": fila.get("estado_pago", "pendiente"),
+                    # datos de pago de la matriz (para "cuánto debo")
+                    "saldo": fila.get("saldo"),
+                    "valor_pagado": fila.get("valor_pagado") or None,
+                    "fecha_pago": fila["fecha_pago"].isoformat() if fila.get("fecha_pago") else None,
+                    "fecha_vencimiento": fila["fecha_vencimiento"].isoformat() if fila.get("fecha_vencimiento") else None,
                     # Viene del Excel, no de un XML validado: entra con
                     # confianza baja y en estado 'asignada' (clasificada
                     # pero sin aprobar), nunca como aprobada.
