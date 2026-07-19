@@ -184,18 +184,28 @@ def es_dueno(workspace_id: str) -> bool:
 
 
 def mi_rol(sb, workspace_id: str) -> str:
-    """'dueno' | 'editor' | 'lector' | 'aprobador'. Se cachea en la sesión."""
+    """'dueno' | 'editor' | 'lector' | 'aprobador'. Se cachea en la sesión.
+
+    Si la consulta falla (red, permisos), NO tumba la página: devuelve
+    'lector', que es el rol más restrictivo. Ante la duda es preferible
+    que alguien no pueda aprobar a que la pantalla entera se caiga — o
+    peor, que se le conceda un permiso que no tiene. La base de datos
+    tiene su propio trigger de aprobación, así que esto es solo la capa
+    de interfaz."""
     if es_dueno(workspace_id):
         return "dueno"
     if "sb_rol" not in st.session_state:
-        r = (
-            sb.table("miembros")
-            .select("rol")
-            .eq("member_user_id", usuario_actual_id())
-            .limit(1)
-            .execute()
-        )
-        st.session_state["sb_rol"] = (r.data[0]["rol"] if r.data else "editor")
+        try:
+            r = (
+                sb.table("miembros")
+                .select("rol")
+                .eq("member_user_id", usuario_actual_id())
+                .limit(1)
+                .execute()
+            )
+            st.session_state["sb_rol"] = (r.data[0]["rol"] if r.data else "editor")
+        except Exception:
+            return "lector"  # sin cachear: se reintenta en la próxima carga
     return st.session_state["sb_rol"]
 
 
