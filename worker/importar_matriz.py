@@ -50,13 +50,27 @@ def _todas(sb, tabla: str, uid: str, columnas: str = "*") -> list[dict]:
 
 
 class Importador:
-    def __init__(self, cfg: Config, ruta: str, simular: bool = False):
-        self.cfg = cfg
+    """Recibe un cliente de Supabase ya construido, no la configuracion.
+
+    Asi lo pueden usar los dos caminos con el MISMO codigo: la linea de
+    comandos (con service_role) y la pantalla de la app (con la sesion del
+    usuario, donde el RLS sigue aplicando). Duplicar esta logica en la app
+    habria sido garantizar que las dos versiones se separen con el tiempo.
+
+    `ruta` puede ser una ruta en disco o cualquier objeto tipo archivo
+    (lo que devuelve el file_uploader de Streamlit).
+    """
+
+    def __init__(self, sb, uid: str, ruta, simular: bool = False):
+        self.sb = sb
+        self.uid = uid
         self.ruta = ruta
         self.simular = simular
-        self.sb = Store(cfg).sb
-        self.uid = cfg.user_id
         self.resumen: dict[str, int] = {}
+
+    @classmethod
+    def desde_config(cls, cfg: Config, ruta: str, simular: bool = False) -> "Importador":
+        return cls(Store(cfg).sb, cfg.user_id, ruta, simular)
 
     def _contar(self, clave: str, n: int = 1) -> None:
         self.resumen[clave] = self.resumen.get(clave, 0) + n
@@ -178,7 +192,11 @@ class Importador:
             self._contar(f"cruzo_{motivo}")
             cambios = matriz.cambios_heredables(fila, factura, ids)
             if not cambios:
-                self._contar("cruzo_sin_cambios")
+                # OJO con el nombre: no puede empezar por "cruzo_" porque
+                # cruce() suma ese prefijo para contar los emparejamientos.
+                # Cuando se llamaba "cruzo_sin_cambios" se contaba dos veces
+                # y el informe llegaba a decir "2 de 1 (200%)".
+                self._contar("ya_estaba_completa")
                 continue
             if not self.simular:
                 self.sb.table("facturas").update(cambios).eq("id", factura["id"]).execute()
@@ -283,14 +301,20 @@ class Importador:
                 self.sb.table("anticipos").insert(nuevos[i:i + 200]).execute()
 
     # ------------------------------------------------------------ informe
+    def cruce(self) -> tuple[int, int]:
+        """(filas que cruzaron, filas leidas). Lo usan el informe de
+        consola y la pantalla de la app, para no calcularlo dos veces."""
+        cruzadas = sum(v for k, v in self.resumen.items() if k.startswith("cruzo_"))
+        return cruzadas, len(getattr(self, "gastos", []))
+
     def informar(self) -> None:
         print("\n" + "=" * 60)
         print("RESUMEN" + ("  (SIMULACION: no se escribio nada)" if self.simular else ""))
         print("=" * 60)
         for k in sorted(self.resumen):
             print(f"  {k:<40} {self.resumen[k]:>7}")
-        cruzadas = sum(v for k, v in self.resumen.items() if k.startswith("cruzo_"))
-        total = len(self.gastos) or 1
+        cruzadas, total = self.cruce()
+        total = total or 1
         print(f"\n  Cruce: {cruzadas} de {len(self.gastos)} ({cruzadas * 100 // total}%)")
 
     def correr(self) -> None:
@@ -332,7 +356,7 @@ def main() -> None:
     cfg = Config()
     if not (cfg.supabase_url and cfg.supabase_service_key and cfg.user_id):
         raise SystemExit("Faltan SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY o APP_USER_ID")
-    Importador(cfg, args[0], simular="--simular" in sys.argv).correr()
+    Importador.desde_config(cfg, args[0], simular="--simular" in sys.argv).correr()
 
 
 if __name__ == "__main__":
