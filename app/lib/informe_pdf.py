@@ -74,6 +74,21 @@ def _celda(v) -> str:
     return f"-{s}" if v < 0 else s
 
 
+_MODOS = {"bancos": "Bancos", "efectivo": "Efectivo",
+          "pago_directo": "Pago directo", "por_identificar": "Por identificar"}
+
+
+def _rango(inicio, fin) -> str:
+    """Rango de fechas de un corte, compacto: '29/05/25-23/10/25'."""
+    def f(x):
+        d = pd.to_datetime(x, errors="coerce")
+        return "" if pd.isna(d) else d.strftime("%d/%m/%y")
+    fa, fb = f(inicio), f(fin)
+    if fa and fb:
+        return f"{fa}-{fb}"
+    return f"desde {fa}" if fa else ""
+
+
 def _clip(pdf: FPDF, texto: str, ancho: float) -> str:
     # "..." en ASCII, no el carácter "…" (U+2026): las fuentes core de fpdf
     # (Helvetica) son latin-1 y ese carácter las hace reventar.
@@ -251,7 +266,9 @@ def _portada(pdf: _Informe, costo: pd.DataFrame):
               label_w, val_w, fs, h, fill=GRIS_BG, bold=True)
 
 
-def _cashflow(pdf: _Informe, cf: pd.DataFrame):
+def _cashflow(pdf: _Informe, cf: pd.DataFrame, anticipos=None, corte_nombre=None, rangos=None):
+    corte_nombre = corte_nombre or {}
+    rangos = rangos or {}
     r = _resumen(cf)
     pdf.titulo("CASH FLOW")
     # tira de totales, con los colores de su hoja
@@ -290,10 +307,23 @@ def _cashflow(pdf: _Informe, cf: pd.DataFrame):
     val_w = (usable - label_w - total_w) / max(len(cortes), 1)
     fs = 7 if val_w >= 16 else (6 if val_w >= 12 else 5.2)
     h = 5.0
-    pdf._encabezado_tabla(
-        ["Concepto"] + [str(c) for c in cortes] + ["TOTAL"],
-        [label_w] + [val_w] * len(cortes) + [total_w], fs, h,
-    )
+    # Encabezado con el nombre del corte y, debajo, su rango de fechas (como
+    # las filas 5 y 6 de su hoja).
+    pdf.set_font("Helvetica", "B", fs)
+    pdf.set_fill_color(*NARANJA)
+    pdf.set_text_color(*BLANCO)
+    pdf.cell(label_w, h, " Concepto", border="LTR", align="L", fill=True)
+    for c in cortes:
+        pdf.cell(val_w, h, _clip(pdf, str(c), val_w), border="LTR", align="C", fill=True)
+    pdf.cell(total_w, h, "TOTAL", border="LTR", align="C", fill=True)
+    pdf.ln(h)
+    pdf.set_font("Helvetica", "", max(fs - 1.5, 4.2))
+    pdf.cell(label_w, 3.6, "", border="LBR", fill=True)
+    for c in cortes:
+        pdf.cell(val_w, 3.6, _clip(pdf, rangos.get(str(c), ""), val_w), border="LBR", align="C", fill=True)
+    pdf.cell(total_w, 3.6, "", border="LBR", fill=True)
+    pdf.ln(3.6)
+    pdf.set_text_color(*GRIS_TX)
 
     fill_por_tipo = {"ingreso": VERDE_BG, "subtotal": GRIS_BG, "egresos": ROSA_BG, "caja": GRIS_BG}
     for clave, etiqueta, tipo in _CONCEPTOS:
@@ -318,17 +348,85 @@ def _cashflow(pdf: _Informe, cf: pd.DataFrame):
         pdf._fila("Gastos acumulado", gas_ac, [(_pesos(gas_ac[-1]), total_w, True)],
                   label_w, val_w, fs, h, fill=AZUL_BG, bold=True)
 
+    _detalle_anticipos(pdf, anticipos, corte_nombre)
+
+
+def _detalle_anticipos(pdf: _Informe, anticipos, corte_nombre):
+    """Lista cada abono del cliente (RC): fecha, recibo/detalle, corte, modo y
+    valor — como las filas de anticipos de su hoja, pero legible en PDF."""
+    if anticipos is None or getattr(anticipos, "empty", True):
+        return
+    # El salto de página lo maneja ESTA función (para repetir el encabezado de
+    # columnas en cada página); si lo dejara al automático de fpdf, la página
+    # nueva arrancaría sin encabezado.
+    pdf.set_auto_page_break(False)
+    if pdf.get_y() > pdf.h - 45:
+        pdf.add_page()
+    else:
+        pdf.ln(4)
+    pdf.titulo("Detalle de anticipos del cliente")
+    cols = [("Fecha", 24, "L"), ("Recibo / detalle", 118, "L"),
+            ("Corte", 30, "L"), ("Modo", 28, "L"), ("Valor", 42, "R")]
+
+    def encabezado():
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_fill_color(*NARANJA)
+        pdf.set_text_color(*BLANCO)
+        for t, w, al in cols:
+            pdf.cell(w, 5.4, " " + t, border=1, align=al, fill=True)
+        pdf.ln(5.4)
+        pdf.set_text_color(*GRIS_TX)
+
+    encabezado()
+    an = anticipos.copy()
+    an["_f"] = pd.to_datetime(an["fecha"], errors="coerce")
+    an = an.sort_values("_f", na_position="last")
+    total = 0.0
+    for _, a in an.iterrows():
+        if pdf.get_y() > pdf.h - 16:
+            pdf.add_page()
+            encabezado()
+        fecha = "" if pd.isna(a["_f"]) else a["_f"].strftime("%d/%m/%Y")
+        rc = a.get("detalle") or a.get("recibo") or ""
+        corte = corte_nombre.get(a.get("corte_id"), "Sin corte")
+        modo = _MODOS.get(a.get("modo_pago"), a.get("modo_pago") or "")
+        val = float(a.get("valor") or 0)
+        total += val
+        pdf.set_font("Helvetica", "", 8)
+        pdf.cell(cols[0][1], 5, " " + fecha, border=1)
+        pdf.cell(cols[1][1], 5, " " + _clip(pdf, str(rc), cols[1][1]), border=1)
+        pdf.cell(cols[2][1], 5, " " + str(corte), border=1)
+        pdf.cell(cols[3][1], 5, " " + str(modo), border=1)
+        pdf.cell(cols[4][1], 5, _pesos(val) + " ", border=1, align="R")
+        pdf.ln(5)
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_fill_color(*GRIS_BG)
+    pdf.cell(sum(w for _, w, _ in cols[:-1]), 5, " TOTAL", border=1, fill=True)
+    pdf.cell(cols[-1][1], 5, _pesos(total) + " ", border=1, align="R", fill=True)
+    pdf.ln(5)
+    pdf.set_auto_page_break(True, margin=12)
+
 
 def generar_informe(proyecto: dict, cash_flow_tabla: pd.DataFrame,
-                    costo: pd.DataFrame, periodo: str | None = None) -> bytes:
+                    costo: pd.DataFrame, periodo: str | None = None,
+                    anticipos=None, cortes=None) -> bytes:
     """PDF del informe: Portada (control de costos) + Cash Flow, estilo Excel.
 
     `costo`: DataFrame largo con columnas capitulo, corte, total y —si se tiene—
     actividad y capitulo_orden (para el desglose por actividad de la Portada).
+    `anticipos`: DataFrame de abonos del cliente (para el detalle por RC).
+    `cortes`: DataFrame de cortes (id, nombre, fecha_inicio, fecha_fin) para el
+    nombre de cada corte y su rango de fechas en el encabezado del cash flow.
     """
+    corte_nombre, rangos = {}, {}
+    if cortes is not None and not getattr(cortes, "empty", True):
+        for _, c in cortes.iterrows():
+            corte_nombre[c["id"]] = c["nombre"]
+            rangos[str(c["nombre"])] = _rango(c.get("fecha_inicio"), c.get("fecha_fin"))
+
     pdf = _Informe(dict(proyecto) if proyecto is not None else {}, periodo)
     pdf.add_page()
     _portada(pdf, costo)
     pdf.add_page()
-    _cashflow(pdf, cash_flow_tabla)
+    _cashflow(pdf, cash_flow_tabla, anticipos, corte_nombre, rangos)
     return bytes(pdf.output())

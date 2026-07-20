@@ -91,14 +91,16 @@ pdf_informe = None
 try:
     fx_proy = db.facturas(sb, uid, proyecto_id=p["id"])
     cortes_p = db.cortes(sb, uid, p["id"])
+    anticipos_p = db.anticipos(sb, uid, p["id"])
     cf_tabla = db.cash_flow(
-        fx_proy, db.anticipos(sb, uid, p["id"]), db.movimientos_caja(sb, uid, p["id"]),
+        fx_proy, anticipos_p, db.movimientos_caja(sb, uid, p["id"]),
         cortes_p, float(p.get("pct_aiu") or 0), bool(p.get("exento_aiu")),
     )
     costo_act = db.costo_por_actividad_local(sb, uid, p["id"], fx_proy, cortes_p)
     pdf_informe = informe_pdf.generar_informe(
         p.to_dict(), cf_tabla,
         costo_act if costo_act is not None else pd.DataFrame(), periodo=periodo,
+        anticipos=anticipos_p, cortes=cortes_p,
     )
     st.download_button(
         "⬇️ Descargar informe PDF", pdf_informe,

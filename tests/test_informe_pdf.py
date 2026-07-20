@@ -66,6 +66,28 @@ def test_desglose_por_actividad_genera_pdf():
     assert len(pdf) > 2000
 
 
+def test_con_detalle_de_anticipos_y_rangos_de_corte():
+    cf = _cash_flow()
+    cortes = pd.DataFrame([
+        {"id": "K1", "nombre": "Corte 1", "fecha_inicio": "2025-05-29", "fecha_fin": "2025-10-23"},
+        {"id": "K2", "nombre": "Corte 2", "fecha_inicio": "2025-10-24", "fecha_fin": "2025-11-30"},
+    ])
+    anticipos = pd.DataFrame([
+        {"corte_id": "K1", "fecha": "2025-08-25", "valor": 30_000_000, "modo_pago": "efectivo", "detalle": "RC 100 (Bertran)"},
+        {"corte_id": "K2", "fecha": "2025-10-24", "valor": 55_000_000, "modo_pago": "bancos", "detalle": "RC 112"},
+    ])
+    pdf = informe_pdf.generar_informe({"nombre": "Casa Vieja 61"}, cf, pd.DataFrame(),
+                                      anticipos=anticipos, cortes=cortes)
+    assert pdf[:4] == b"%PDF"
+    assert len(pdf) > 2000
+
+
+def test_rango_de_fechas_de_corte():
+    assert informe_pdf._rango("2025-05-29", "2025-10-23") == "29/05/25-23/10/25"
+    assert informe_pdf._rango("2025-05-29", None) == "desde 29/05/25"
+    assert informe_pdf._rango(None, None) == ""
+
+
 def test_formato_pesos_completos():
     assert informe_pdf._pesos(1_639_316_058) == "$1.639.316.058"
     assert informe_pdf._pesos(-47_404_252) == "-$47.404.252"

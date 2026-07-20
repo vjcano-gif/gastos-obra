@@ -187,6 +187,8 @@ try:
         tabla,
         costo_informe,
         periodo=periodo_txt,
+        anticipos=anticipos,
+        cortes=cortes,
     )
     st.download_button(
         "⬇️ Descargar informe PDF", data=pdf_bytes,
