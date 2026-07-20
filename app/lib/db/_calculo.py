@@ -236,6 +236,46 @@ def costo_por_capitulo(sb, proyecto_id: str) -> pd.DataFrame:
     return datos
 
 
+def cumplimiento_cronograma(hitos, anticipos) -> dict:
+    """Cumplimiento de los abonos del cliente: lo PROGRAMADO (cronograma
+    de hitos tipo 'abono') contra lo REALMENTE recibido (anticipos).
+
+    Devuelve totales y % de cumplimiento. Sirve para responder si el
+    cliente va al día con los pagos pactados.
+    """
+    programado = 0.0
+    if hitos is not None and not hitos.empty and "tipo" in hitos:
+        ab = hitos[hitos["tipo"] == "abono"]
+        programado = pd.to_numeric(ab.get("monto", 0), errors="coerce").fillna(0).sum()
+    recibido = 0.0
+    if anticipos is not None and not anticipos.empty:
+        recibido = pd.to_numeric(anticipos["valor"], errors="coerce").fillna(0).sum()
+    pct = (recibido / programado * 100) if programado else None
+    return {
+        "programado": float(programado),
+        "recibido": float(recibido),
+        "pendiente": float(max(programado - recibido, 0)),
+        "cumplimiento_pct": pct,          # None si no hay cronograma cargado
+    }
+
+
+def superavit_por_corte(cash_flow_tabla) -> pd.DataFrame:
+    """Superávit (+) o déficit (-) por corte, a partir del cash flow.
+
+    El déficit de un corte es cuando lo recibido no alcanzó a cubrir lo
+    gastado en ese periodo (anticipos del corte - subtotal del corte). El
+    acumulado es la caja del proyecto."""
+    if cash_flow_tabla is None or cash_flow_tabla.empty:
+        return pd.DataFrame()
+    ant = cash_flow_tabla.loc["anticipos"]
+    sub = cash_flow_tabla.loc["subtotal"]
+    return pd.DataFrame({
+        "corte": list(cash_flow_tabla.columns),
+        "resultado": (ant - sub).values,           # + superávit, - déficit
+        "caja_acumulada": cash_flow_tabla.loc["caja_final"].values,
+    })
+
+
 def costo_por_capitulo_local(sb, uid, proyecto_id, facturas_pr, cortes_pr) -> pd.DataFrame:
     """Lo mismo, pero para el equipo interno, calculado aquí.
 
