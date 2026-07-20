@@ -137,29 +137,22 @@ if not fx.empty:
     elif filtro == "Posibles duplicados":
         fx = fx[fx["posible_duplicado_de"].notna()]
 
-    # Se ordena por cuándo LLEGÓ (created_at), no por la fecha de emisión:
-    # así lo recién capturado queda arriba y de un vistazo se ve que el
-    # barrido de correo sigue trayendo facturas. Una factura vieja emitida
-    # en 2020 pero importada hoy debe verse arriba, no hundida al fondo.
-    if "created_at" in fx.columns:
-        fx = fx.assign(_llegada=pd.to_datetime(fx["created_at"], errors="coerce")).sort_values(
-            "_llegada", ascending=False, na_position="last"
-        )
+    # Orden por FECHA DE EMISIÓN, las más recientes primero.
+    fx = fx.assign(_emision=pd.to_datetime(fx["fecha_emision"], errors="coerce")).sort_values(
+        "_emision", ascending=False, na_position="last"
+    )
 
-    st.caption("Ordenadas por llegada: las más recientes primero.")
+    st.caption("Ordenadas por fecha de emisión: las más recientes primero.")
     for _, f in fx.head(100).iterrows():
         icono = "🟢" if f.get("sentido") == "ingreso" else "🔴"
         alerta = " ⚠️ posible duplicado" if f.get("posible_duplicado_de") else ""
         baja = " 🔍 confianza baja" if f.get("confianza") == "baja" else ""
         numero_doc = db.texto(f.get("numero"), "s.n.")
         proveedor = db.texto(f.get("proveedor_nombre"), "Sin nombre")[:45]
-        # La fecha de llegada al lado de la de emisión: confirma que entró hoy.
-        llegada = f.get("_llegada")
-        sello = f" · llegó {llegada.date()}" if pd.notna(llegada) else ""
         titulo = (
             f"{icono} {db.texto(f.get('fecha_emision'), 's.f.')} · "
             f"{proveedor} · N.° {numero_doc} · {db.cop(f['total'])} · "
-            f"{db.texto(f.get('estado'))}{alerta}{baja}{sello}"
+            f"{db.texto(f.get('estado'))}{alerta}{baja}"
         )
         with st.expander(titulo):
             items_f = db.factura_items(sb, f["id"])

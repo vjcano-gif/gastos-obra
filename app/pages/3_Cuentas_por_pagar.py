@@ -84,7 +84,7 @@ cA, cB = st.columns(2)
 with cA:
     st.subheader("Por proyecto")
     por_proy = pend.groupby("proyecto")["saldo_pend"].sum().sort_values()
-    viz.barras(por_proy.index, por_proy.values, key="cpp_proy")
+    viz.barras(por_proy.index, por_proy.values, key="cpp_proy", porcentaje=True)
 with cB:
     st.subheader("Antigüedad de la deuda")
     def rango(d):
@@ -102,7 +102,7 @@ with cB:
     orden = ["Vencida +60 días", "Vencida 31-60", "Vencida 1-30", "Vence ≤ 15 días", "Al día", "Sin fecha"]
     ant = pend.assign(a=pend["dias"].map(rango)).groupby("a")["saldo_pend"].sum()
     ant = ant.reindex([o for o in orden if o in ant.index])
-    viz.barras(ant.index, ant.values, key="cpp_aging", color=viz.COLOR_GASTO)
+    viz.barras(ant.index, ant.values, key="cpp_aging", color=viz.COLOR_GASTO, porcentaje=True)
 
 st.divider()
 

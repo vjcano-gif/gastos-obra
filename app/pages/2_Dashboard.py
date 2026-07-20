@@ -28,7 +28,7 @@ detalle = db.aplicar_asignaciones(detalle, db.asignaciones(sb, uid))
 detalle_gasto = detalle[detalle["sentido"] == "gasto"] if not detalle.empty else detalle
 
 cap = db.capitulos(sb, uid)
-tg = db.tipos_gasto(sb, uid)
+act = db.actividades(sb, uid)
 
 # --- métricas: SIEMPRE a nivel de proyecto (el filtro cruzado no las toca;
 # afecta las gráficas de abajo, que es lo que se quiere drill-down).
@@ -101,35 +101,43 @@ if not detalle.empty:
 
 st.divider()
 
-# --- gastos por proyecto (barras con etiqueta; reacciona al filtro cruzado)
+# La clasificación del negocio es por PROYECTO, CAPÍTULO y ACTIVIDAD. Cada
+# barra es una proporción del gasto total, así que lleva su % (regla de la
+# app). Todas reaccionan al filtro cruzado por capítulo.
+
+# --- gastos por proyecto (solo cuando se ven todos)
 if pid is None:
     st.subheader("Gastos por proyecto")
     por_p = viz.por_dimension(detalle_foco, pr, "proyecto_id", "Sin asignar").sort_values(ascending=False)
     if not por_p.empty:
-        viz.barras(por_p.index, por_p.values, key="dash_proy_bar")
+        viz.barras(por_p.index, por_p.values, key="dash_proy_bar", porcentaje=True)
         st.caption(
             "Costo por obra a nivel de artículo, respetando el reparto multiproyecto. "
             "'Sin asignar' espera revisión: idealmente cero."
         )
 
-c_tipo, c_cap = st.columns(2)
-with c_tipo:
-    st.subheader("Gastos por tipo")
-    por_t = viz.por_dimension(detalle_foco, tg, "tipo_gasto_id").sort_values(ascending=False)
-    if not por_t.empty:
-        viz.tabla_parte_del_todo(por_t.index, por_t.values, "Tipo de gasto")
-
+c_cap, c_act = st.columns(2)
 with c_cap:
     st.subheader("Gastos por capítulo")
     st.caption("Haz clic en un capítulo para filtrar la página; clic de nuevo para quitarlo.")
-    # Este es el DRIVER del filtro cruzado: siempre muestra TODOS los
-    # capítulos (sin el foco) para poder elegir/cambiar.
+    # DRIVER del filtro cruzado: siempre muestra TODOS los capítulos (sin
+    # el foco) para poder elegir/cambiar. Con % del total.
     por_c = viz.por_dimension(detalle_gasto, cap, "capitulo_id").sort_values(ascending=True)
     if not por_c.empty:
         viz.barras(por_c.index, por_c.values, key="dash_cap",
-                   seleccionable=True, resaltado=foco_cap)
+                   seleccionable=True, resaltado=foco_cap, porcentaje=True)
+
+with c_act:
+    st.subheader("Gastos por actividad")
+    por_a = viz.por_dimension(detalle_foco, act, "actividad_id").sort_values(ascending=False)
+    if not por_a.empty:
+        # Tabla con %: suelen ser muchas actividades y una tabla ordenada
+        # se lee mejor que 50 barras.
+        viz.tabla_parte_del_todo(por_a.index, por_a.values, "Actividad")
+    else:
+        st.caption("Sin gasto clasificado por actividad en este filtro.")
 
 st.caption(
-    "La clasificación por tipo y capítulo se calcula por artículo, no por factura "
-    "completa — más preciso cuando una compra mezcla varios rubros."
+    "La clasificación por capítulo y actividad se calcula por artículo, no por "
+    "factura completa — más preciso cuando una compra mezcla varios rubros."
 )

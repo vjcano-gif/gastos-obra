@@ -63,16 +63,24 @@ def barras(
     seleccionable: bool = False,
     resaltado: str | None = None,
     titulo_x: str = "COP",
+    porcentaje: bool = False,
 ) -> str | None:
     """Barras horizontales con etiqueta de dato (el valor en $).
 
     Si `seleccionable`, se puede hacer clic en una barra para filtrar el
     resto de la página; devuelve el nombre de la barra elegida (o None).
     `resaltado` pinta distinto la barra activa del filtro cruzado.
+    `porcentaje=True` agrega el % del total a la etiqueta: para cuando la
+    barra es una PROPORCIÓN (cada obra/capítulo es parte del gasto total).
     """
     nombres = list(nombres)
     valores = [float(v or 0) for v in valores]
     colores = [_RESALTE if (resaltado and n == resaltado) else color for n in nombres]
+    total = sum(valores) or 1
+    if porcentaje:
+        etiquetas = [f"{db.cop(v)} · {v / total * 100:.1f}%" for v in valores]
+    else:
+        etiquetas = [db.cop(v) for v in valores]
 
     fig = go.Figure(
         go.Bar(
@@ -80,7 +88,7 @@ def barras(
             y=nombres,
             orientation="h",
             marker_color=colores,
-            text=[db.cop(v) for v in valores],
+            text=etiquetas,
             textposition="auto",
             cliponaxis=False,
         )
