@@ -78,3 +78,39 @@ if __name__ == "__main__":
         if nombre.startswith("test_"):
             fn()
             print("OK  ", nombre)
+
+
+# --- sacar el PDF de adentro del ZIP DIAN (aunque el mime diga xml) -------
+def _zip_con_pdf() -> bytes:
+    import io, zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("ad12345.xml", "<Invoice>datos</Invoice>")
+        z.writestr("fv12345.pdf", _pdf())          # el PDF que el humano quiere ver
+    return buf.getvalue()
+
+
+def test_saca_el_pdf_del_zip_aunque_el_mime_diga_xml():
+    """Un ZIP DIAN trae el fv*.pdf junto al XML. Datos viejos quedaron
+    guardados como 'application/xml' siendo un ZIP: hay que sacarles el
+    PDF igual y mostrarlo."""
+    imgs = db.paginas_de_documento(_Sb(_zip_con_pdf()), "ruta/factura.xml", "application/xml")
+    assert len(imgs) == 1
+    assert imgs[0].startswith(b"\x89PNG")
+
+
+def test_xml_crudo_sin_pdf_no_da_imagen():
+    """Un XML de verdad (no ZIP) no tiene PDF: no hay imagen que mostrar."""
+    imgs = db.paginas_de_documento(_Sb(b"<Invoice>solo xml</Invoice>"), "r.xml", "application/xml")
+    assert imgs == []
+
+
+def test_pdf_directo_se_rasteriza():
+    imgs = db.paginas_de_documento(_Sb(_pdf()), "r.pdf", "application/pdf")
+    assert len(imgs) == 1 and imgs[0].startswith(b"\x89PNG")
+
+
+def test_sin_documentos_no_revienta():
+    import pandas as pd
+    db.mostrar_documentos(_Sb(b""), pd.DataFrame())   # no debe lanzar
+    db.mostrar_documentos(_Sb(b""), None)

@@ -178,8 +178,7 @@ if not fx.empty:
                 docs = db.df(
                     sb.table("documentos").select("*").eq("factura_id", f["id"]).execute()
                 )
-                for _, d in docs.iterrows():
-                    db.mostrar_documento(sb, d)
+                db.mostrar_documentos(sb, docs)
 
                 if not items_f.empty:
                     st.markdown("**Clasificación por artículo**")

@@ -117,6 +117,52 @@ def url_documento(sb, storage_path: str, minutos: int = 10) -> str | None:
         return None
 
 
+@st.cache_data(ttl=900, show_spinner=False, max_entries=60)
+def paginas_de_documento(_sb, storage_path: str, mime: str, max_paginas: int = 5) -> list[bytes]:
+    """Páginas PNG a mostrar de un documento, sea lo que sea.
+
+    - PDF -> se rasteriza.
+    - ZIP (o XML mal etiquetado que en realidad es el ZIP de la DIAN) -> se
+      SACA el PDF de adentro y se rasteriza. Es lo que pidió el usuario:
+      "del xml se saca el pdf". Un ZIP DIAN trae el fv*.pdf junto al XML.
+    - Otra cosa (XML crudo de verdad) -> no hay imagen, devuelve [].
+    """
+    try:
+        contenido = _sb.storage.from_("documentos").download(storage_path)
+    except Exception:
+        return []
+
+    # Un ZIP empieza con "PK". Aunque el mime diga xml, si el archivo es un
+    # ZIP se le saca el PDF (datos viejos guardados antes del arreglo).
+    if contenido[:2] == b"PK" or "zip" in (mime or ""):
+        import io
+        import zipfile
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(contenido)) as z:
+                pdf = next((n for n in z.namelist() if n.lower().endswith(".pdf")), None)
+                if pdf:
+                    contenido = z.read(pdf)
+                else:
+                    return []
+        except Exception:
+            return []
+    elif not (mime.endswith("pdf") or contenido[:4] == b"%PDF"):
+        return []
+
+    return _rasterizar(contenido, max_paginas)
+
+
+def _rasterizar(pdf_bytes: bytes, max_paginas: int) -> list[bytes]:
+    import fitz
+
+    try:
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            return [doc[i].get_pixmap(dpi=144).tobytes("png") for i in range(min(len(doc), max_paginas))]
+    except Exception:
+        return []
+
+
 @st.cache_data(ttl=900, show_spinner=False, max_entries=40)
 def paginas_pdf(_sb, storage_path: str, max_paginas: int = 5) -> list[bytes]:
     """Convierte el PDF a imágenes PNG en el servidor.
@@ -155,37 +201,61 @@ def paginas_pdf(_sb, storage_path: str, max_paginas: int = 5) -> list[bytes]:
     return imagenes
 
 
-def mostrar_documento(sb, d) -> None:
-    """Enlace de descarga + previsualización del documento, en la misma
-    pantalla (sin abrir otra pestaña). Lo usan Revisión y Todas las
-    facturas: una sola implementación, mismo comportamiento en ambas."""
-    url = url_documento(sb, d["storage_path"])
-    nombre_doc = d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
-    mime_doc = str(d.get("mime", ""))
+def _nombre(d) -> str:
+    return d.get("nombre_renombrado") or d.get("nombre_original") or "documento"
 
-    if url:
-        st.markdown(f"📄 [⬇️ Descargar original: {nombre_doc}]({url})")
 
-    if mime_doc.endswith("pdf"):
-        paginas = paginas_pdf(sb, d["storage_path"])
-        if paginas:
-            for n, png in enumerate(paginas, 1):
-                st.image(
-                    png,
-                    use_container_width=True,
-                    caption=f"Página {n} de {len(paginas)}" if len(paginas) > 1 else None,
-                )
-        elif url:
-            st.caption("No se pudo previsualizar el PDF; el enlace de descarga sí funciona.")
-    elif mime_doc.startswith("image/"):
-        # una foto de recibo NO es un XML: se muestra tal cual
+def mostrar_documentos(sb, docs) -> None:
+    """Previsualiza la factura y ofrece descargar TODOS sus archivos.
+
+    Recibe el conjunto de documentos de UNA factura (no uno solo) y elige
+    el mejor para mostrar: primero un PDF o imagen; si solo hay XML, le
+    saca el PDF de adentro (el ZIP de la DIAN lo trae). Los enlaces de
+    descarga se muestran para todos los archivos que haya.
+    """
+    if docs is None or (hasattr(docs, "empty") and docs.empty):
+        st.caption("📭 Este movimiento no tiene documento digital (viene de la matriz de Excel).")
+        return
+
+    filas = [d for _, d in docs.iterrows()] if hasattr(docs, "iterrows") else list(docs)
+
+    # --- enlaces de descarga de todo lo que haya
+    for d in filas:
+        url = url_documento(sb, d["storage_path"])
         if url:
-            st.image(url, use_container_width=True)
+            st.markdown(f"📄 [⬇️ Descargar: {_nombre(d)}]({url})")
+
+    # --- una sola previsualización: el mejor documento
+    def rango(d):  # prioridad: imagen y pdf antes que xml
+        m = str(d.get("mime", ""))
+        return 0 if m.startswith("image/") else (1 if m.endswith("pdf") else 2)
+
+    mejor = sorted(filas, key=rango)[0]
+    mime = str(mejor.get("mime", ""))
+
+    if mime.startswith("image/"):
+        u = url_documento(sb, mejor["storage_path"])
+        if u:
+            st.image(u, use_container_width=True)
+        return
+
+    # pdf, o xml/zip del que se saca el pdf
+    paginas = paginas_de_documento(sb, mejor["storage_path"], mime)
+    if paginas:
+        for n, png in enumerate(paginas, 1):
+            st.image(png, use_container_width=True,
+                     caption=f"Página {n} de {len(paginas)}" if len(paginas) > 1 else None)
     else:
         st.caption(
-            "El archivo original es el XML técnico de la DIAN — la vista de arriba "
-            "ya muestra sus datos de forma legible. Descárgalo solo si necesitas el XML crudo."
+            "No hay imagen para previsualizar (el documento es el XML técnico de la "
+            "DIAN, sin PDF adjunto). Los datos ya se ven arriba; descarga el XML si lo necesitas."
         )
+
+
+def mostrar_documento(sb, d) -> None:
+    """Compatibilidad: un solo documento. Nuevas pantallas usan
+    mostrar_documentos (plural), que elige el mejor de todos."""
+    mostrar_documentos(sb, [d])
 
 
 # ------------------------------------------------------------- AIU y cortes

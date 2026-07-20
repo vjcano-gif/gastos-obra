@@ -188,8 +188,7 @@ if filas_sel:
     )
 
     docs = db.df(sb.table("documentos").select("*").eq("factura_id", fila["factura_id"]).execute())
-    for _, d in docs.iterrows():
-        db.mostrar_documento(sb, d)
+    db.mostrar_documentos(sb, docs)
 
     with st.form("editar_detalle"):
         if fila["item_id"] is not None:
