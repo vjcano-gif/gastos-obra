@@ -95,10 +95,10 @@ try:
         fx_proy, db.anticipos(sb, uid, p["id"]), db.movimientos_caja(sb, uid, p["id"]),
         cortes_p, float(p.get("pct_aiu") or 0), bool(p.get("exento_aiu")),
     )
-    costo_cap = db.costo_por_capitulo_local(sb, uid, p["id"], fx_proy, cortes_p)
+    costo_act = db.costo_por_actividad_local(sb, uid, p["id"], fx_proy, cortes_p)
     pdf_informe = informe_pdf.generar_informe(
         p.to_dict(), cf_tabla,
-        costo_cap if costo_cap is not None else pd.DataFrame(), periodo=periodo,
+        costo_act if costo_act is not None else pd.DataFrame(), periodo=periodo,
     )
     st.download_button(
         "⬇️ Descargar informe PDF", pdf_informe,

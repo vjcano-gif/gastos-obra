@@ -175,10 +175,17 @@ periodo_txt = None
 if proyecto.get("fecha_inicio"):
     periodo_txt = f"{db.texto(proyecto.get('fecha_inicio'))} a {date.today().isoformat()}"
 try:
+    # El desglose por actividad (capítulo → actividad) da el informe con la
+    # misma estructura del Excel; el cliente, que no lee facturas, cae al
+    # nivel de capítulo (RPC).
+    if rol == "cliente":
+        costo_informe = detalle if detalle is not None else pd.DataFrame()
+    else:
+        costo_informe = db.costo_por_actividad_local(sb, uid, proyecto_id, facturas, cortes)
     pdf_bytes = informe_pdf.generar_informe(
         proyecto.to_dict(),
         tabla,
-        detalle if detalle is not None else pd.DataFrame(),
+        costo_informe,
         periodo=periodo_txt,
     )
     st.download_button(

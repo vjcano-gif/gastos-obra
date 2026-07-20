@@ -343,6 +343,52 @@ def proyeccion_compromisos(egresos, ingresos, meses: int = 3, hoy=None) -> pd.Da
     )
 
 
+def costo_por_actividad_local(sb, uid, proyecto_id, facturas_pr, cortes_pr) -> pd.DataFrame:
+    """Costo desglosado capítulo → actividad → corte, para el informe con la
+    misma estructura del Excel (Portada): cada capítulo con sus actividades.
+
+    Devuelve columnas: capitulo, capitulo_orden, actividad, corte, total. La
+    etiqueta de capítulo/actividad lleva su código ("0 TRAMITES", "0.01
+    Planos") como en su hoja. Solo interno: el cliente usa la RPC por capítulo.
+    """
+    from ._lecturas import actividades as _actividades
+    if facturas_pr is None or facturas_pr.empty:
+        return pd.DataFrame()
+    items = items_de_factura_ids(sb, uid, facturas_pr["id"].tolist())
+    detalle = detalle_clasificado(facturas_pr, items)
+    if detalle.empty:
+        return pd.DataFrame()
+
+    caps = capitulos(sb, uid)
+    acts = _actividades(sb, uid)
+
+    def _mapa(df, col):
+        return dict(zip(df["id"], df[col])) if (df is not None and not df.empty and col in df) else {}
+
+    cap_nom, cap_cod, cap_ord = _mapa(caps, "nombre"), _mapa(caps, "codigo"), _mapa(caps, "orden")
+    act_nom, act_cod = _mapa(acts, "nombre"), _mapa(acts, "codigo")
+    corte_nom = _mapa(cortes_pr, "nombre")
+
+    def _etq(nombre, codigo):
+        c = None if codigo is None or (isinstance(codigo, float) and pd.isna(codigo)) else str(codigo).strip()
+        return f"{c} {nombre}" if c else str(nombre)
+
+    d = detalle.copy()
+    d["capitulo"] = d["capitulo_id"].map(lambda i: _etq(cap_nom.get(i, "Sin capítulo"), cap_cod.get(i)))
+    d["capitulo_orden"] = d["capitulo_id"].map(
+        lambda i: cap_ord.get(i) if cap_ord.get(i) is not None else 999
+    )
+    d["actividad"] = d["actividad_id"].map(
+        lambda i: _etq(act_nom.get(i), act_cod.get(i)) if i in act_nom else "(sin actividad)"
+    )
+    d["corte"] = d["corte_id"].map(corte_nom).fillna("Sin corte")
+    return (
+        d.groupby(["capitulo", "capitulo_orden", "actividad", "corte"], as_index=False)["valor"]
+        .sum()
+        .rename(columns={"valor": "total"})
+    )
+
+
 def costo_por_capitulo_local(sb, uid, proyecto_id, facturas_pr, cortes_pr) -> pd.DataFrame:
     """Lo mismo, pero para el equipo interno, calculado aquí.
 

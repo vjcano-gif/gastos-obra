@@ -51,10 +51,32 @@ def test_sin_nada_no_revienta():
     assert pdf[:4] == b"%PDF"
 
 
-def test_formato_millones_colombiano():
-    assert informe_pdf._mm(1_639_316_058) == "1.639,3"
-    assert informe_pdf._mm(0) == "-"
-    assert informe_pdf._mm(None) == "-"
+def test_desglose_por_actividad_genera_pdf():
+    cf = _cash_flow()
+    costo = pd.DataFrame([
+        {"capitulo": "1 Preliminares", "capitulo_orden": 1, "actividad": "1.01 Cerramiento",
+         "corte": "Corte 1", "total": 1_245_400},
+        {"capitulo": "1 Preliminares", "capitulo_orden": 1, "actividad": "1.05 Campamento",
+         "corte": "Corte 2", "total": 9_869_438},
+        {"capitulo": "2 Excavaciones", "capitulo_orden": 2, "actividad": "2.02 Fundaciones",
+         "corte": "Corte 2", "total": 67_779_351},
+    ])
+    pdf = informe_pdf.generar_informe({"nombre": "Casa Vieja 61"}, cf, costo, periodo="2025")
+    assert pdf[:4] == b"%PDF"
+    assert len(pdf) > 2000
+
+
+def test_formato_pesos_completos():
+    assert informe_pdf._pesos(1_639_316_058) == "$1.639.316.058"
+    assert informe_pdf._pesos(-47_404_252) == "-$47.404.252"
+    assert informe_pdf._pesos(None) == "$0"
+
+
+def test_celda_pesos_y_cero_vacio():
+    assert informe_pdf._celda(350_302) == "350.302"
+    assert informe_pdf._celda(-15_183_034) == "-15.183.034"
+    assert informe_pdf._celda(0) == ""            # cero -> celda vacía, como su Excel
+    assert informe_pdf._celda("100%") == "100%"   # strings pasan tal cual
 
 
 def test_sin_corte_que_solo_arrastra_caja_se_oculta():
@@ -68,12 +90,6 @@ def test_sin_corte_que_solo_arrastra_caja_se_oculta():
     cf2 = cf.copy()
     cf2.loc["total_egresos", "Sin corte"] = 500     # ahora sí hay gasto sin corte
     assert informe_pdf._sin_corte_vacio(cf2, filas=["anticipos", "total_egresos"]) is False
-
-
-def test_cop_con_signo():
-    assert informe_pdf._cop(-47_404_252) == "-$47.404.252"
-    assert informe_pdf._cop(1_262_488_373) == "$1.262.488.373"
-    assert informe_pdf._cop(None) == "$0"
 
 
 if __name__ == "__main__":
