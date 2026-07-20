@@ -77,6 +77,29 @@ def test_valor_como_texto_con_formato_colombiano():
     assert d.iloc[0]["valor"] == 103311060.0
 
 
+def test_elige_la_hoja_matriz_ingresos_entre_varias():
+    """El libro real trae ~18 hojas; la de ingresos no es la primera y tiene
+    columnas de sobra (Día, Mes, Año) que deben ignorarse."""
+    from datetime import datetime
+    wb = Workbook()
+    wb.active.title = "LCORTE"          # hoja decoy, primera
+    wb.active.append(["algo", "otra"])
+    ws = wb.create_sheet("MATRIZ INGRESOS")
+    ws.append(["Fecha", "Día", "Mes", "Año", "Proyecto", "Corte", "Detalle",
+               "Total", "Modo de Pago", "Encima / Debajo"])
+    ws.append([datetime(2024, 5, 7), 7, "May", 2024, "Arrayanes 40", "Corte 1",
+               "Transferencia", 80000000, "Transferencia", "Encima"])
+    buf = BytesIO()
+    wb.save(buf)
+    d = importar_ingresos.parsear_excel(buf.getvalue())
+    assert len(d) == 1
+    assert d.iloc[0]["proyecto"] == "Arrayanes 40"
+    assert d.iloc[0]["valor"] == 80000000
+    assert d.iloc[0]["fecha"] == "2024-05-07"       # fecha real de Excel
+    assert d.iloc[0]["modo_pago"] == "bancos"
+    assert list(d.columns) == importar_ingresos.COLUMNAS   # sin Día/Mes/Año
+
+
 def test_archivo_sin_columnas_esperadas_avisa():
     wb = Workbook()
     ws = wb.active

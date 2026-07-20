@@ -122,8 +122,14 @@ def parsear_excel(contenido: bytes) -> pd.DataFrame:
     emparejamiento de proyecto/corte por nombre y la inserción los hace la
     página, que es la que conoce los ids del workspace.
     """
-    crudo = pd.read_excel(io.BytesIO(contenido))
-    # Renombrar por encabezado normalizado; ignorar columnas que no conocemos.
+    xls = pd.ExcelFile(io.BytesIO(contenido))
+    # El libro real de la constructora trae ~18 hojas (LCORTE, MATRIZ GASTOS,
+    # MATRIZ INGRESOS…). La de ingresos casi nunca es la primera, así que se
+    # busca por nombre; si no aparece, se usa la primera hoja.
+    hoja = next((s for s in xls.sheet_names if "ingreso" in _norm(s)), xls.sheet_names[0])
+    crudo = xls.parse(hoja)
+    # Renombrar por encabezado normalizado; ignorar columnas que no conocemos
+    # (Día, Mes, Año van en la matriz pero no en la tabla `anticipos`).
     renombre = {}
     for col in crudo.columns:
         destino = _ENCABEZADOS.get(_norm(col))
