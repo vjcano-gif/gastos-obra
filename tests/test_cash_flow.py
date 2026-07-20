@@ -149,3 +149,19 @@ if __name__ == "__main__":
         if nombre.startswith("test_"):
             fn()
             print("OK  ", nombre)
+
+
+# --- exención de AIU a nivel de proyecto (migración 019) ------------------
+def test_proyecto_exento_no_genera_comision():
+    """Un proyecto exento de AIU no genera comisión aunque tenga %AIU: la
+    exención del proyecto manda sobre la tarifa."""
+    facturas = pd.DataFrame([
+        {"corte_id": "K1", "pagador": "empresa", "total": 1000000.0, "exento_aiu": False},
+    ])
+    t = db.cash_flow(facturas, pd.DataFrame(), pd.DataFrame(), CORTES, 0.14,
+                     proyecto_exento=True)
+    assert t.loc["aiu_gastos", "Corte 1"] == 0
+    # y sin la exención del proyecto sí cobra
+    t2 = db.cash_flow(facturas, pd.DataFrame(), pd.DataFrame(), CORTES, 0.14,
+                      proyecto_exento=False)
+    assert t2.loc["aiu_gastos", "Corte 1"] == 140000.0

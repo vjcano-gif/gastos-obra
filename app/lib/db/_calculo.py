@@ -143,16 +143,20 @@ CONCEPTOS_CASH_FLOW = [
 ]
 
 
-def cash_flow(facturas_pr, anticipos_pr, movimientos_pr, cortes_pr, pct_aiu) -> pd.DataFrame:
+def cash_flow(facturas_pr, anticipos_pr, movimientos_pr, cortes_pr, pct_aiu,
+              proyecto_exento: bool = False) -> pd.DataFrame:
     """Cash flow del proyecto, un corte por columna.
 
     Recibe ya filtrado por proyecto. Devuelve un DataFrame con una fila
     por concepto y una columna por corte, en el mismo orden en que ellos
     lo leen. El saldo de caja se encadena: el final de un corte es el
     inicial del siguiente.
+
+    `proyecto_exento`: si el proyecto es exento de AIU, no genera comisión
+    aunque tenga %AIU (la exención del proyecto manda). Ver migración 019.
     """
     try:
-        pct = float(pct_aiu or 0)
+        pct = 0.0 if proyecto_exento else float(pct_aiu or 0)
     except (TypeError, ValueError):
         pct = 0.0
 

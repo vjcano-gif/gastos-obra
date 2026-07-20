@@ -37,6 +37,7 @@ else:
 
 proyecto_id = proyecto["id"]
 pct_aiu = float(proyecto.get("pct_aiu") or 0)
+proyecto_exento = bool(proyecto.get("exento_aiu"))
 
 cortes = db.cortes(sb, uid, proyecto_id)
 anticipos = db.anticipos(sb, uid, proyecto_id)
@@ -54,7 +55,7 @@ else:
     costos = None
 
 # ------------------------------------------------------------ encabezado
-tabla = db.cash_flow(facturas, anticipos, movimientos, cortes, pct_aiu)
+tabla = db.cash_flow(facturas, anticipos, movimientos, cortes, pct_aiu, proyecto_exento)
 
 total_ingresos = float(tabla.loc["anticipos"].sum())
 total_costos = float(tabla.loc["total_egresos"].sum())

@@ -52,6 +52,14 @@ modo_pagador = (
 pct_aiu = (
     {r["id"]: (r.get("pct_aiu") or 0) for _, r in pr.iterrows()} if not pr.empty else {}
 )
+# Exención de AIU y residente responsable: son del proyecto (migración 019).
+# La factura los hereda; el exento se puede forzar por factura (caso raro).
+proy_exento = (
+    {r["id"]: bool(r.get("exento_aiu")) for _, r in pr.iterrows()} if not pr.empty else {}
+)
+proy_residente = (
+    {r["id"]: r.get("residente_id") for _, r in pr.iterrows()} if not pr.empty else {}
+)
 
 nombre_pr = {v: k for k, v in opciones_pr.items() if v}
 nombre_tg = {v: k for k, v in opciones_tg.items() if v}
@@ -207,7 +215,15 @@ if not fx.empty:
             with c2:
                 with st.form(f"asig_{f['id']}"):
                     proy = st.selectbox("Proyecto", list(opciones_pr), key=f"p{f['id']}")
-                    residente = st.selectbox("Residente", list(opciones_res), key=f"res{f['id']}")
+                    # El residente responsable se hereda del proyecto (método B):
+                    # cada obra tiene su residente, que es quien debe clasificar
+                    # sus gastos. Se puede cambiar por factura.
+                    nombre_res = {v: k for k, v in opciones_res.items() if v}
+                    res_def = f.get("residente_id") or proy_residente.get(opciones_pr[proy])
+                    residente = st.selectbox(
+                        "Residente responsable", list(opciones_res), key=f"res{f['id']}",
+                        index=db.indice_de(list(opciones_res), nombre_res.get(res_def, "— sin residente —")),
+                    )
                     if items_f.empty:
                         st.caption("Sin detalle de artículos: clasifica la factura completa aquí.")
                         tipo = st.selectbox("Tipo de gasto", list(opciones_tg), key=f"t{f['id']}")
@@ -267,10 +283,14 @@ if not fx.empty:
                         index=db.indice_de(legal_ops, f.get("legalizacion")),
                         format_func=lambda v: db.etiqueta(db.LEGALIZACION, v) or "—",
                     )
+                    # La exención de AIU es del proyecto (migración 019): se
+                    # hereda marcada si el proyecto es exento, y se puede
+                    # forzar por factura para el caso raro.
                     exento = e2.checkbox(
                         "Exenta de AIU", key=f"aiu{f['id']}",
-                        value=bool(f.get("exento_aiu")),
-                        help="Se excluye de la base sobre la que se calcula la comisión.",
+                        value=bool(f.get("exento_aiu")) or proy_exento.get(opciones_pr[proy], False),
+                        help="Se excluye de la base sobre la que se calcula la comisión. "
+                             "Se hereda del proyecto si está marcado como exento.",
                     )
                     concepto_actual = f.get("concepto")
                     concepto = st.text_input(

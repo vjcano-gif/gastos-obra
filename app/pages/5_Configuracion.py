@@ -82,6 +82,11 @@ with tab_p:
         nom_cond = st.selectbox("Proyecto", list(ops_cond), key="cond_proy")
         p_cond = pr[pr["id"] == ops_cond[nom_cond]].iloc[0]
 
+        res_cond = db.residentes(sb, uid)
+        ops_res_cond = {"— sin residente —": None} | (
+            {r["nombre"]: r["id"] for _, r in res_cond.iterrows()} if not res_cond.empty else {}
+        )
+        nom_res_cond = {v: k for k, v in ops_res_cond.items() if v}
         with st.form("editar_condiciones"):
             e1, e2 = st.columns(2)
             aiu_e = e1.number_input(
@@ -94,9 +99,25 @@ with tab_p:
                 index=db.indice_de(modos, p_cond.get("pagador_modo") or "espacios"),
                 format_func=lambda v: db.PAGADOR_MODO[v],
             )
+            e3, e4 = st.columns(2)
+            exento_e = e3.checkbox(
+                "Exento de AIU", value=bool(p_cond.get("exento_aiu")),
+                help="Sus facturas no generan comisión (se hereda a cada factura).",
+            )
+            residente_e = e4.selectbox(
+                "Residente responsable", list(ops_res_cond),
+                index=db.indice_de(list(ops_res_cond),
+                                   nom_res_cond.get(p_cond.get("residente_id"), "— sin residente —")),
+                help="Quien debe clasificar los gastos de esta obra. Se hereda a cada factura.",
+            )
             if st.form_submit_button("Guardar condiciones"):
                 sb.table("proyectos").update(
-                    {"pct_aiu": round(aiu_e / 100, 4), "pagador_modo": modo_e}
+                    {
+                        "pct_aiu": round(aiu_e / 100, 4),
+                        "pagador_modo": modo_e,
+                        "exento_aiu": exento_e,
+                        "residente_id": ops_res_cond[residente_e],
+                    }
                 ).eq("id", p_cond["id"]).execute()
                 db.rerun()
 
