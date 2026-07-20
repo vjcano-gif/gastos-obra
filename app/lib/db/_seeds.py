@@ -4,22 +4,6 @@ from __future__ import annotations
 from ._formato import _norm
 from ._lecturas import df
 
-TIPOS_OBRA = [
-    ("Preliminares", "preliminares", "servicios"),
-    ("Cimentación", "cimentacion", "compras"),
-    ("Estructura", "estructura", "compras"),
-    ("Mampostería", "mamposteria", "compras"),
-    ("Acabados", "acabados", "compras"),
-    ("Instalaciones eléctricas", "instalaciones", "compras"),
-    ("Instalaciones hidrosanitarias", "instalaciones", "compras"),
-    ("Carpintería y metálicas", "acabados", "compras"),
-    ("Equipos y herramienta", "equipos", "compras"),
-    ("Transporte y acarreos", "logistica", "servicios"),
-    ("Mano de obra", "mano_de_obra", "servicios"),
-    ("Honorarios y diseño", "honorarios", "honorarios"),
-    ("Administración", "administracion", "ninguno"),
-]
-
 # Tarifas de ejemplo — VALIDAR con el contador antes de usar en serio.
 REGLAS_EJEMPLO = [
     ("retefuente", "compras", 2.5, 27),
@@ -46,14 +30,8 @@ CAPITULOS_OBRA = [
 
 
 def sembrar_si_vacio(sb, uid) -> None:
-    if sb.table("tipos_gasto").select("id").eq("user_id", uid).limit(1).execute().data:
+    if sb.table("reglas_retencion").select("id").eq("user_id", uid).limit(1).execute().data:
         return
-    sb.table("tipos_gasto").insert(
-        [
-            {"user_id": uid, "nombre": n, "capitulo": c, "concepto_retencion": r}
-            for n, c, r in TIPOS_OBRA
-        ]
-    ).execute()
     sb.table("reglas_retencion").insert(
         [
             {

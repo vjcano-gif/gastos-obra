@@ -7,10 +7,9 @@ por corte — para saber si el cliente va al día y si la obra tiene caja.
 """
 from datetime import date
 
-import pandas as pd
 import streamlit as st
 
-from lib import db, viz
+from lib import db, importar_ingresos, viz
 
 st.set_page_config(page_title="Ingresos", page_icon="💵", layout="wide")
 sb, uid = db.requiere_sesion()
@@ -87,6 +86,84 @@ if puede:
                 }).execute()
                 st.success("Ingreso registrado.")
                 db.rerun()
+
+    # ------------------------------ importar la matriz de ingresos (Excel)
+    with st.expander("📥 Importar matriz de ingresos (Excel)"):
+        st.caption(
+            "Sube el Excel de la matriz de ingresos (columnas Fecha, Proyecto, Corte, "
+            "Detalle, Total, Modo de Pago, Encima/Debajo). Empareja proyecto y corte por "
+            "nombre e inserta los abonos de **todas** las obras del archivo, sin duplicar "
+            "los que ya estén cargados."
+        )
+        archivo_x = st.file_uploader("Archivo .xlsx", type=["xlsx"], key="imp_ingresos")
+        if archivo_x is not None:
+            try:
+                nuevos = importar_ingresos.parsear_excel(archivo_x.getvalue())
+            except Exception as e:
+                st.error(f"No se pudo leer el archivo: {e}")
+                nuevos = None
+
+            if nuevos is not None and nuevos.empty:
+                st.warning("El archivo no tiene filas de ingreso válidas (con proyecto y valor).")
+            elif nuevos is not None:
+                _norm = importar_ingresos._norm
+                pr_por_nombre = {_norm(r["nombre"]): r["id"] for _, r in pr.iterrows()}
+                todos_cortes = db.cortes(sb, uid)
+                corte_por_clave = {
+                    (c["proyecto_id"], _norm(c["nombre"])): c["id"]
+                    for _, c in todos_cortes.iterrows()
+                } if not todos_cortes.empty else {}
+
+                existentes = db.anticipos(sb, uid)
+                claves = set()
+                if not existentes.empty:
+                    for _, a in existentes.iterrows():
+                        claves.add((a.get("proyecto_id"), str(a.get("fecha") or ""),
+                                    round(float(a.get("valor") or 0), 2), _norm(a.get("detalle"))))
+
+                a_insertar, sin_proyecto, dup, sin_fecha = [], set(), 0, 0
+                for _, r in nuevos.iterrows():
+                    pid_r = pr_por_nombre.get(_norm(r["proyecto"]))
+                    if pid_r is None:
+                        sin_proyecto.add(r["proyecto"])
+                        continue
+                    if not r["fecha"]:
+                        sin_fecha += 1
+                        continue
+                    clave = (pid_r, str(r["fecha"]), round(float(r["valor"]), 2), _norm(r["detalle"]))
+                    if clave in claves:
+                        dup += 1
+                        continue
+                    claves.add(clave)   # evita duplicar dentro del mismo archivo
+                    corte_id = corte_por_clave.get((pid_r, _norm(r["corte"]))) if r["corte"] else None
+                    a_insertar.append({
+                        "user_id": uid, "proyecto_id": pid_r, "corte_id": corte_id,
+                        "fecha": r["fecha"], "valor": float(r["valor"]),
+                        "modo_pago": r["modo_pago"], "detalle": r["detalle"],
+                        "legalizacion": r["legalizacion"],
+                    })
+
+                st.dataframe(
+                    nuevos.assign(Total=nuevos["valor"].map(db.cop))[
+                        ["fecha", "proyecto", "corte", "detalle", "Total", "modo_pago", "legalizacion"]
+                    ],
+                    use_container_width=True, hide_index=True,
+                )
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("Nuevas", len(a_insertar))
+                k2.metric("Ya cargadas", dup)
+                k3.metric("Sin proyecto", len(sin_proyecto))
+                k4.metric("Sin fecha", sin_fecha)
+                if sin_proyecto:
+                    st.warning(
+                        "Estos proyectos del archivo no existen en la app (créalos primero en "
+                        "Configuración): " + ", ".join(sorted(sin_proyecto))
+                    )
+                if a_insertar and st.button(f"✅ Importar {len(a_insertar)} ingresos nuevos"):
+                    for i in range(0, len(a_insertar), 200):
+                        sb.table("anticipos").insert(a_insertar[i:i + 200]).execute()
+                    st.success(f"{len(a_insertar)} ingresos importados.")
+                    db.rerun()
 
 # ------------------------------------------------------- ingresos por corte
 if anticipos.empty:

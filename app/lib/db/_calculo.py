@@ -276,6 +276,73 @@ def superavit_por_corte(cash_flow_tabla) -> pd.DataFrame:
     })
 
 
+def proyeccion_compromisos(egresos, ingresos, meses: int = 3, hoy=None) -> pd.DataFrame:
+    """Proyección de caja hacia adelante, un mes por fila.
+
+    Contrasta los EGRESOS comprometidos (vencimientos de cuentas por pagar)
+    contra los INGRESOS previstos (abonos programados del cronograma del
+    proyecto). Responde: ¿me alcanza lo que voy a cobrar para cubrir lo que
+    tengo que pagar en los próximos `meses`?
+
+    `egresos` e `ingresos` son DataFrames con columnas 'fecha' y 'valor'. Lo
+    ATRASADO (fecha anterior al mes en curso) y lo POSTERIOR al horizonte van
+    a buckets propios para no esconderlos: así el acumulado arranca desde el
+    saldo vencido real y los totales reconcilian con lo que se debe y lo que
+    falta por cobrar. Devuelve periodo, ingresos_previstos,
+    egresos_comprometidos, neto y acumulado (la trayectoria de caja).
+    """
+    hoy = (pd.Timestamp(hoy) if hoy is not None else pd.Timestamp.today()).normalize()
+    mes0 = hoy.to_period("M")
+    horizonte = [mes0 + i for i in range(max(int(meses), 1))]
+    ult = horizonte[-1]
+
+    ATRASADO, POSTERIOR, SINFECHA = "Vencido / atrasado", "Posterior", "Sin fecha"
+
+    def bucket(fecha):
+        f = pd.to_datetime(fecha, errors="coerce")
+        if pd.isna(f):
+            return SINFECHA
+        p = f.to_period("M")
+        if p < mes0:
+            return ATRASADO
+        if p > ult:
+            return POSTERIOR
+        return str(p)
+
+    def por_bucket(d):
+        s: dict = {}
+        if d is not None and not d.empty and "fecha" in d and "valor" in d:
+            v = pd.to_numeric(d["valor"], errors="coerce").fillna(0)
+            for b, val in zip(d["fecha"].map(bucket), v):
+                s[b] = s.get(b, 0.0) + float(val)
+        return s
+
+    eg, ing = por_bucket(egresos), por_bucket(ingresos)
+
+    # Los meses del horizonte siempre se muestran (aunque estén en cero, para
+    # ver la línea de tiempo); los buckets extra solo si tienen algo.
+    orden = []
+    if eg.get(ATRASADO) or ing.get(ATRASADO):
+        orden.append(ATRASADO)
+    orden += [str(p) for p in horizonte]
+    for extra in (POSTERIOR, SINFECHA):
+        if eg.get(extra) or ing.get(extra):
+            orden.append(extra)
+
+    filas, acum = [], 0.0
+    for b in orden:
+        i, e = round(ing.get(b, 0.0), 2), round(eg.get(b, 0.0), 2)
+        acum += i - e
+        filas.append({
+            "periodo": b, "ingresos_previstos": i, "egresos_comprometidos": e,
+            "neto": round(i - e, 2), "acumulado": round(acum, 2),
+        })
+    return pd.DataFrame(
+        filas,
+        columns=["periodo", "ingresos_previstos", "egresos_comprometidos", "neto", "acumulado"],
+    )
+
+
 def costo_por_capitulo_local(sb, uid, proyecto_id, facturas_pr, cortes_pr) -> pd.DataFrame:
     """Lo mismo, pero para el equipo interno, calculado aquí.
 

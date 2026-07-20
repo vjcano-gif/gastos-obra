@@ -58,21 +58,12 @@ def procesar_mensaje(cfg: Config, store: Store, msg: dict, contexto: dict) -> st
             f["gmail_message_id"] = msg["id"]
             f["remitente_correo"] = (msg.get("remitente") or "")[:200] or None
             f["hash_adjunto"] = h
-            # Clasificar PRIMERO y derivar el concepto de retención del tipo
-            # de gasto sugerido — antes se calculaba todo como "compras", así
-            # que servicios/honorarios/arriendos recibían tarifa equivocada.
-            f["tipo_gasto_id"] = clasificador.sugerir_tipo_gasto(
-                cfg, f, contexto["tipos"], contexto["historial"]
-            )
-            concepto = next(
-                (
-                    t.get("concepto_retencion")
-                    for t in contexto["tipos"]
-                    if t.get("id") == f["tipo_gasto_id"]
-                ),
-                None,
-            )
-            f["concepto_retencion"] = concepto or "compras"
+            # El concepto de retención (compras/servicios/honorarios/arriendos)
+            # define la tarifa de retefuente. Antes se derivaba del "tipo de
+            # gasto"; esa dimensión se quitó de la app, así que ahora se sugiere
+            # directo — sin ella, todo caía a "compras" y servicios/honorarios/
+            # arriendos recibían tarifa equivocada (regresión que evitamos).
+            f["concepto_retencion"] = clasificador.sugerir_concepto_retencion(cfg, f)
             f.update(retenciones.calcular(f, contexto["reglas"], contexto["uvt"]))
             f.pop("concepto_retencion", None)
             fid = store.insertar_factura(f, datos["items"])
@@ -255,9 +246,6 @@ def main() -> int:
     contexto = {
         "reglas": store.reglas_retencion(),
         "uvt": store.uvt(),
-        "tipos": store.sb.table("tipos_gasto").select("*").eq("user_id", store.uid).execute().data
-        or [],
-        "historial": store.historial_clasificacion(),
     }
 
     ids = gmail_client.buscar_mensajes(svc, cfg)

@@ -23,12 +23,10 @@ if not puede_aprobar:
     st.caption("🔒 Tu rol no permite aprobar facturas: puedes clasificar y guardar.")
 
 pr = db.proyectos(sb, uid)
-tg = db.tipos_gasto(sb, uid)
 cap = db.capitulos(sb, uid)
 act = db.actividades(sb, uid)
 res = db.residentes(sb, uid)
 opciones_pr = {"— sin proyecto —": None} | ({r["nombre"]: r["id"] for _, r in pr.iterrows()} if not pr.empty else {})
-opciones_tg = {"— sin tipo —": None} | ({r["nombre"]: r["id"] for _, r in tg.iterrows()} if not tg.empty else {})
 opciones_cap = {"— sin capítulo —": None} | ({r["nombre"]: r["id"] for _, r in cap.iterrows()} if not cap.empty else {})
 opciones_act = {"— sin actividad —": None} | (
     {
@@ -62,7 +60,6 @@ proy_residente = (
 )
 
 nombre_pr = {v: k for k, v in opciones_pr.items() if v}
-nombre_tg = {v: k for k, v in opciones_tg.items() if v}
 nombre_cap = {v: k for k, v in opciones_cap.items() if v}
 nombre_act = {v: k for k, v in opciones_act.items() if v}
 
@@ -187,25 +184,20 @@ if not fx.empty:
                         seleccion_items = {}
                         for _, it in items_f.iterrows():
                             st.caption(f"{it.get('descripcion') or 'Sin descripción'} · {db.cop(it.get('total'))}")
-                            ci1, ci2, ci3 = st.columns(3)
-                            tipo_i = ci1.selectbox(
-                                "Tipo de gasto", list(opciones_tg), key=f"tg_{it['id']}",
-                                index=list(opciones_tg).index(nombre_tg.get(it.get("tipo_gasto_id"), "— sin tipo —")),
-                            )
-                            cap_i = ci2.selectbox(
+                            ci1, ci2 = st.columns(2)
+                            cap_i = ci1.selectbox(
                                 "Capítulo", list(opciones_cap), key=f"cap_{it['id']}",
                                 index=list(opciones_cap).index(nombre_cap.get(it.get("capitulo_id"), "— sin capítulo —")),
                             )
-                            act_i = ci3.selectbox(
+                            act_i = ci2.selectbox(
                                 "Actividad", list(opciones_act), key=f"act_{it['id']}",
                                 index=list(opciones_act).index(nombre_act.get(it.get("actividad_id"), "— sin actividad —")),
                             )
-                            seleccion_items[it["id"]] = (tipo_i, cap_i, act_i)
+                            seleccion_items[it["id"]] = (cap_i, act_i)
                         if st.form_submit_button("💾 Guardar clasificación de artículos", use_container_width=True):
-                            for item_id, (tipo_i, cap_i, act_i) in seleccion_items.items():
+                            for item_id, (cap_i, act_i) in seleccion_items.items():
                                 sb.table("factura_items").update(
                                     {
-                                        "tipo_gasto_id": opciones_tg[tipo_i],
                                         "capitulo_id": opciones_cap[cap_i],
                                         "actividad_id": opciones_act[act_i],
                                     }
@@ -226,7 +218,6 @@ if not fx.empty:
                     )
                     if items_f.empty:
                         st.caption("Sin detalle de artículos: clasifica la factura completa aquí.")
-                        tipo = st.selectbox("Tipo de gasto", list(opciones_tg), key=f"t{f['id']}")
                         capitulo = st.selectbox("Capítulo", list(opciones_cap), key=f"cap{f['id']}")
                         actividad = st.selectbox("Actividad", list(opciones_act), key=f"act{f['id']}")
                     # Los vacíos llegan de pandas como NaN (que es "truthy" y no
@@ -324,7 +315,6 @@ if not fx.empty:
                             "posible_duplicado_de": None,
                         }
                         if items_f.empty:
-                            cambios["tipo_gasto_id"] = opciones_tg[tipo]
                             cambios["capitulo_id"] = opciones_cap[capitulo]
                             cambios["actividad_id"] = opciones_act[actividad]
                         sb.table("facturas").update(cambios).eq("id", f["id"]).execute()

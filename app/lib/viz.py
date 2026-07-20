@@ -136,7 +136,7 @@ def tabla_parte_del_todo(nombres, valores, col_nombre: str = "Concepto") -> None
 def por_dimension(detalle: pd.DataFrame, dim_df: pd.DataFrame, id_col: str,
                   defecto: str = "Sin clasificar") -> pd.Series:
     """Suma `valor` del detalle agrupado por el NOMBRE de una dimensión
-    (capítulo, tipo, proyecto). Devuelve una serie nombre -> total."""
+    (capítulo, actividad, proyecto). Devuelve una serie nombre -> total."""
     if detalle is None or detalle.empty:
         return pd.Series(dtype=float)
     d = detalle.merge(

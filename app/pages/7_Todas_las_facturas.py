@@ -21,7 +21,6 @@ if fx.empty:
 items_all = db.todos_los_items(sb, uid)
 
 pr = db.proyectos(sb, uid)
-tg = db.tipos_gasto(sb, uid)
 cap = db.capitulos(sb, uid)
 act = db.actividades(sb, uid)
 res = db.residentes(sb, uid)
@@ -107,7 +106,6 @@ if vista.startswith("Matriz"):
     st.stop()
 
 opciones_pr = {"— sin proyecto —": None} | ({r["nombre"]: r["id"] for _, r in pr.iterrows()} if not pr.empty else {})
-opciones_tg = {"— sin tipo —": None} | ({r["nombre"]: r["id"] for _, r in tg.iterrows()} if not tg.empty else {})
 opciones_cap = {"— sin capítulo —": None} | ({r["nombre"]: r["id"] for _, r in cap.iterrows()} if not cap.empty else {})
 opciones_act = {"— sin actividad —": None} | (
     {
@@ -120,7 +118,6 @@ opciones_act = {"— sin actividad —": None} | (
 opciones_res = {"— sin residente —": None} | ({r["nombre"]: r["id"] for _, r in res.iterrows()} if not res.empty else {})
 
 nombre_pr = {v: k for k, v in opciones_pr.items() if v}
-nombre_tg = {v: k for k, v in opciones_tg.items() if v}
 nombre_cap = {v: k for k, v in opciones_cap.items() if v}
 nombre_act = {v: k for k, v in opciones_act.items() if v}
 nombre_res = {v: k for k, v in opciones_res.items() if v}
@@ -131,7 +128,6 @@ total_original = len(detalle)
 
 detalle["_fecha_dt"] = pd.to_datetime(detalle["fecha_emision"], errors="coerce")
 detalle["proyecto"] = detalle["proyecto_id"].map(nombre_pr).fillna("—")
-detalle["tipo_gasto"] = detalle["tipo_gasto_id"].map(nombre_tg).fillna("—")
 detalle["capitulo"] = detalle["capitulo_id"].map(nombre_cap).fillna("—")
 detalle["actividad"] = detalle["actividad_id"].map(nombre_act).fillna("—")
 detalle["residente"] = detalle["residente_id"].map(nombre_res).fillna("—")
@@ -167,7 +163,7 @@ st.caption(f"**{len(detalle)}** de {total_original} artículos/facturas coincide
 
 columnas_tabla = [
     "fecha_emision", "numero", "proveedor_nombre", "descripcion", "cantidad", "valor",
-    "sentido", "estado", "proyecto", "tipo_gasto", "capitulo", "actividad", "residente",
+    "sentido", "estado", "proyecto", "capitulo", "actividad", "residente",
 ]
 seleccion = st.dataframe(
     detalle[columnas_tabla],
@@ -191,17 +187,11 @@ if filas_sel:
     db.mostrar_documentos(sb, docs)
 
     with st.form("editar_detalle"):
-        if fila["item_id"] is not None:
-            c1, c2, c3 = st.columns(3)
-            tipo = c1.selectbox("Tipo de gasto", list(opciones_tg), index=list(opciones_tg).index(nombre_tg.get(fila["tipo_gasto_id"], "— sin tipo —")))
-            capitulo = c2.selectbox("Capítulo", list(opciones_cap), index=list(opciones_cap).index(nombre_cap.get(fila["capitulo_id"], "— sin capítulo —")))
-            actividad = c3.selectbox("Actividad", list(opciones_act), index=list(opciones_act).index(nombre_act.get(fila["actividad_id"], "— sin actividad —")))
-        else:
+        if fila["item_id"] is None:
             st.caption("Esta factura no tiene detalle de artículos: se clasifica completa.")
-            c1, c2, c3 = st.columns(3)
-            tipo = c1.selectbox("Tipo de gasto", list(opciones_tg), index=list(opciones_tg).index(nombre_tg.get(fila["tipo_gasto_id"], "— sin tipo —")))
-            capitulo = c2.selectbox("Capítulo", list(opciones_cap), index=list(opciones_cap).index(nombre_cap.get(fila["capitulo_id"], "— sin capítulo —")))
-            actividad = c3.selectbox("Actividad", list(opciones_act), index=list(opciones_act).index(nombre_act.get(fila["actividad_id"], "— sin actividad —")))
+        c1, c2 = st.columns(2)
+        capitulo = c1.selectbox("Capítulo", list(opciones_cap), index=list(opciones_cap).index(nombre_cap.get(fila["capitulo_id"], "— sin capítulo —")))
+        actividad = c2.selectbox("Actividad", list(opciones_act), index=list(opciones_act).index(nombre_act.get(fila["actividad_id"], "— sin actividad —")))
 
         c4, c5, c6 = st.columns(3)
         proy = c4.selectbox("Proyecto", list(opciones_pr), index=list(opciones_pr).index(nombre_pr.get(fila["proyecto_id"], "— sin proyecto —")))
@@ -215,7 +205,6 @@ if filas_sel:
             if fila["item_id"] is not None:
                 sb.table("factura_items").update(
                     {
-                        "tipo_gasto_id": opciones_tg[tipo],
                         "capitulo_id": opciones_cap[capitulo],
                         "actividad_id": opciones_act[actividad],
                     }
@@ -229,7 +218,6 @@ if filas_sel:
                         {}
                         if fila["item_id"] is not None
                         else {
-                            "tipo_gasto_id": opciones_tg[tipo],
                             "capitulo_id": opciones_cap[capitulo],
                             "actividad_id": opciones_act[actividad],
                         }

@@ -27,6 +27,11 @@ if fx.empty:
 pr = db.proyectos(sb, uid)
 nombre_pr = dict(zip(pr["id"], pr["nombre"])) if not pr.empty else {}
 
+# --- filtro por proyecto (lista desplegable, aguanta cientos de obras)
+_, pid_filtro = viz.selector_proyecto(pr, key="cpp_proy")
+if pid_filtro is not None:
+    fx = fx[fx["proyecto_id"] == pid_filtro]
+
 # --- deuda: saldo de la matriz si existe, si no estado_pago (helper probado)
 pend = db.con_saldo_pendiente(fx)
 # abonos registrados en la app restan del saldo
@@ -108,7 +113,8 @@ st.divider()
 
 # ------------------------------------------------ Bases del negocio (comisión, retención)
 st.subheader("💼 Bases del negocio")
-gasto_all = db.facturas(sb, uid, sentido="gasto")
+# Reusa `fx` (ya filtrado por proyecto): las bases responden al mismo filtro.
+gasto_all = fx
 base_com = 0.0
 if not gasto_all.empty:
     exento = gasto_all.get("exento_aiu", pd.Series([False] * len(gasto_all)))
@@ -136,7 +142,15 @@ st.divider()
 
 # ------------------------------------------- detalle + registro de pagos
 st.subheader("Detalle y registro de pagos")
+st.caption(
+    "Al registrar un pago se anota el comprobante y la fecha, se acumula en "
+    "'Valor pagado' y la factura pasa a **parcial** o **pagada** según cubra el saldo."
+)
 puede = db.puede_editar(sb, uid)
+# Lo ya abonado por factura (de la tabla `pagos`), para acumular valor_pagado.
+abonado_por_factura = (
+    pagos.groupby("factura_id")["monto"].sum() if not pagos.empty else pd.Series(dtype=float)
+)
 for _, f in pend.sort_values("dias").head(80).iterrows():
     marca = "🔴" if f["dias"] < 0 else ("🟡" if f["dias"] <= 15 else "🟢")
     with st.expander(
@@ -145,19 +159,37 @@ for _, f in pend.sort_values("dias").head(80).iterrows():
         f"saldo {db.cop(f['saldo_pend'])}"
     ):
         st.caption(f"{f['proyecto']} · total factura {db.cop(f['total'])}")
+        ya_abonado = float(abonado_por_factura.get(f["id"], 0) or 0)
+        if ya_abonado:
+            st.caption(f"Abonado hasta ahora: {db.cop(ya_abonado)}")
         if puede:
             with st.form(f"pago_{f['id']}"):
-                monto = st.number_input("Registrar pago/abono", min_value=0.0,
-                                        max_value=float(f["saldo_pend"]), value=float(f["saldo_pend"]), step=1000.0)
-                fecha_p = st.date_input("Fecha del pago", value=date.today())
-                if st.form_submit_button("💾 Registrar") and monto > 0:
+                cpa, cpb = st.columns(2)
+                monto = cpa.number_input("Registrar pago/abono", min_value=0.0,
+                                         max_value=float(f["saldo_pend"]), value=float(f["saldo_pend"]), step=1000.0)
+                fecha_p = cpb.date_input("Fecha del pago", value=date.today())
+                cpc, cpd = st.columns(2)
+                comprobante = cpc.text_input("Comprobante / soporte N.º",
+                                             placeholder="Ej: transferencia 12345, RC 189")
+                medio_ops = db.opciones(db.METODOS_PAGO)
+                medio = cpd.selectbox("Medio de pago", medio_ops,
+                                      format_func=lambda v: db.etiqueta(db.METODOS_PAGO, v) or "—")
+                if st.form_submit_button("💾 Registrar pago") and monto > 0:
                     sb.table("pagos").insert({
                         "user_id": uid, "factura_id": f["id"],
                         "monto": monto, "fecha": str(fecha_p),
+                        "medio": medio or None, "notas": comprobante or None,
                     }).execute()
+                    # Acumula lo pagado y sella la fecha; marca parcial/pagada.
+                    upd = {
+                        "valor_pagado": round(ya_abonado + monto, 2),
+                        "fecha_pago": str(fecha_p),
+                    }
                     if monto >= f["saldo_pend"]:
-                        sb.table("facturas").update({"estado_pago": "pagada", "saldo": 0}).eq("id", f["id"]).execute()
+                        upd["estado_pago"] = "pagada"
+                        upd["saldo"] = 0
                     else:
-                        sb.table("facturas").update({"estado_pago": "parcial"}).eq("id", f["id"]).execute()
+                        upd["estado_pago"] = "parcial"
+                    sb.table("facturas").update(upd).eq("id", f["id"]).execute()
                     st.success("Pago registrado.")
                     db.rerun()

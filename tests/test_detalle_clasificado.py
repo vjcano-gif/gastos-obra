@@ -48,17 +48,16 @@ def test_articulo_sin_clasificar_hereda_la_de_la_factura():
     articulo. Sin esto, una factura bien clasificada aparecia en 'Sin
     capitulo' solo porque el detalle venia en blanco."""
     fx = _fx([{"id": "F1", "tipo_documento": "factura", "proyecto_id": "P",
-               "capitulo_id": "CF", "actividad_id": "AF", "tipo_gasto_id": "TF"}])
+               "capitulo_id": "CF", "actividad_id": "AF"}])
     items = pd.DataFrame([{"id": "I1", "factura_id": "F1", "total": 100,
-                           "capitulo_id": None, "actividad_id": None, "tipo_gasto_id": None}])
+                           "capitulo_id": None, "actividad_id": None}])
     d = db.detalle_clasificado(fx, items).iloc[0]
     assert d["capitulo_id"] == "CF"
     assert d["actividad_id"] == "AF"
-    assert d["tipo_gasto_id"] == "TF"
 
 
 def test_descripcion_del_articulo_no_hereda_la_de_la_factura():
-    """Solo la CLASIFICACION (capitulo/actividad/tipo) cae a la factura si
+    """Solo la CLASIFICACION (capitulo/actividad) cae a la factura si
     el articulo la trae vacia. La descripcion del articulo es del articulo:
     si viene vacia, vacia — no se rellena con el consolidado de la factura,
     que diria algo distinto de lo que es esa linea."""

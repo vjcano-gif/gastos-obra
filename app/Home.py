@@ -21,7 +21,11 @@ if fx.empty:
     )
 else:
     gastos = fx[fx["sentido"] == "gasto"]["monto_efectivo"].sum()
-    ingresos = fx[fx["sentido"] == "ingreso"]["monto_efectivo"].sum()
+    # Ingresos = abonos del cliente (anticipos) + ingresos registrados como factura.
+    anticipos_all = db.anticipos(sb, uid)
+    ingresos = fx[fx["sentido"] == "ingreso"]["monto_efectivo"].sum() + (
+        float(anticipos_all["valor"].sum()) if not anticipos_all.empty else 0.0
+    )
     pendientes = fx[(fx["sentido"] == "gasto") & (~fx["estado"].isin(["pagada", "anulada"]))]
     c1.metric("Gastos acumulados", db.cop(gastos))
     c2.metric("Ingresos acumulados", db.cop(ingresos))
@@ -35,12 +39,14 @@ else:
 st.markdown(
     """
 **Rutas rápidas**
-- 📋 **Revisión** — asignar proyecto, tipo de gasto y método de pago a lo que llegó.
+- 📋 **Revisión** — asignar proyecto, capítulo/actividad y método de pago a lo que llegó.
 - 🗂️ **Todas las facturas** — ver y corregir el universo completo, con filtros y segmentador de fechas.
 - 📈 **Dashboard** — gastos vs ingresos por mes, con segmentador por proyecto.
-- 💳 **Cuentas por pagar** — vencimientos, saldos y registro de abonos.
+- 💵 **Ingresos** — registrar abonos del cliente (o importar la matriz de ingresos) y ver cumplimiento.
+- 💳 **Cuentas por pagar** — vencimientos, saldos y registro de pagos con comprobante.
+- 📆 **Compromisos futuros** — vencimientos vs ingresos previstos, N meses hacia adelante.
 - ✉️ **Estado de cuenta** — informe del proyecto listo para enviar al cliente.
-- ⚙️ **Configuración** — proyectos, tipos de gasto, reglas de retención y UVT.
+- ⚙️ **Configuración** — proyectos, capítulos y actividades, reglas de retención y UVT.
 - 👥 **Usuarios** — invitar o quitar personas del equipo (solo el dueño la ve).
 """
 )

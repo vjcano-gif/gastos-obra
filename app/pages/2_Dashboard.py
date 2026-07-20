@@ -27,16 +27,28 @@ detalle = db.detalle_clasificado(fx, db.todos_los_items(sb, uid))
 detalle = db.aplicar_asignaciones(detalle, db.asignaciones(sb, uid))
 detalle_gasto = detalle[detalle["sentido"] == "gasto"] if not detalle.empty else detalle
 
+# Los INGRESOS del proyecto son los abonos del cliente (tabla `anticipos`, la
+# "matriz de ingresos") MÁS cualquier ingreso registrado como factura. Antes
+# solo se contaban las facturas sentido=ingreso, así que una obra con abonos
+# —como Arrayanes 40— aparecía en $0 aunque el cliente ya hubiera consignado.
+anticipos = db.anticipos(sb, uid, pid)
+
 cap = db.capitulos(sb, uid)
 act = db.actividades(sb, uid)
 
 # --- métricas: SIEMPRE a nivel de proyecto (el filtro cruzado no las toca;
 # afecta las gráficas de abajo, que es lo que se quiere drill-down).
 gasto_total = detalle_gasto["valor"].sum() if not detalle_gasto.empty else 0
-ingreso_total = detalle[detalle["sentido"] == "ingreso"]["valor"].sum() if not detalle.empty else 0
+ingreso_fac = detalle[detalle["sentido"] == "ingreso"]["valor"].sum() if not detalle.empty else 0
+ingreso_ant = (
+    float(pd.to_numeric(anticipos["valor"], errors="coerce").fillna(0).sum())
+    if not anticipos.empty else 0.0
+)
+ingreso_total = ingreso_fac + ingreso_ant
 m1, m2, m3 = st.columns(3)
 m1.metric("Gastos", db.cop(gasto_total))
-m2.metric("Ingresos", db.cop(ingreso_total))
+m2.metric("Ingresos", db.cop(ingreso_total),
+          help="Abonos del cliente (matriz de ingresos) más ingresos registrados como factura.")
 m3.metric("Saldo", db.cop(ingreso_total - gasto_total))
 
 # --- FILTRO CRUZADO: el capítulo clicado (en la gráfica de abajo) filtra
@@ -57,18 +69,22 @@ if foco_cap and not detalle_gasto.empty and not cap.empty:
 
 # --- serie mensual gastos vs ingresos (área + etiquetas), desde el detalle
 # a nivel de artículo: los gastos respetan el filtro cruzado, los ingresos no.
-def _por_mes(d: pd.DataFrame) -> pd.Series:
-    if d is None or d.empty:
+def _por_mes(d: pd.DataFrame, col_fecha: str = "fecha_emision", col_valor: str = "valor") -> pd.Series:
+    if d is None or d.empty or col_fecha not in d or col_valor not in d:
         return pd.Series(dtype=float)
     d = d.copy()
-    d["_f"] = pd.to_datetime(d["fecha_emision"], errors="coerce")
+    d["_f"] = pd.to_datetime(d[col_fecha], errors="coerce")
     d = d[d["_f"].notna()]
     d["_mes"] = d["_f"].dt.to_period("M").dt.to_timestamp()
-    return d.groupby("_mes")["valor"].sum()
+    return d.groupby("_mes")[col_valor].sum()
 
 if not detalle.empty:
     gasto_mes = _por_mes(detalle_foco)
-    ing_mes = _por_mes(detalle[detalle["sentido"] == "ingreso"])
+    # Ingresos por mes = facturas-ingreso (fecha de emisión) + abonos del
+    # cliente (su propia fecha de consignación). `add` alinea los meses.
+    ing_mes = _por_mes(detalle[detalle["sentido"] == "ingreso"]).add(
+        _por_mes(anticipos, col_fecha="fecha"), fill_value=0
+    )
     meses = sorted(set(gasto_mes.index) | set(ing_mes.index))
     serie = pd.DataFrame({
         "mes": meses,

@@ -1,7 +1,8 @@
-"""IA de apoyo (OpenAI): extraer datos de documentos sin XML y sugerir
-tipo de gasto. Todo lo que salga de aquí queda con confianza='baja' y
-pasa obligatoriamente por revisión humana. Si no hay API key, se degrada
-con elegancia: el documento queda en revisión sin datos sugeridos.
+"""IA de apoyo (OpenAI): extraer datos de documentos sin XML y sugerir el
+concepto de retención (compras/servicios/honorarios/arriendos). Todo lo que
+salga de aquí queda con confianza='baja' y pasa obligatoriamente por
+revisión humana. Si no hay API key, se degrada con elegancia: el documento
+queda en revisión sin datos sugeridos.
 """
 from __future__ import annotations
 
@@ -143,20 +144,20 @@ def extraer_de_imagen(cfg: Config, imagenes: list[bytes]) -> dict | None:
         return None
 
 
-def sugerir_tipo_gasto(
-    cfg: Config, factura: dict, tipos: list[dict], historial: list[dict]
-) -> str | None:
-    """Primero el historial (mismo proveedor -> mismo tipo); si no, la IA."""
-    nit = factura.get("proveedor_nit")
-    if nit:
-        usados = [h["tipo_gasto_id"] for h in historial if h.get("proveedor_nit") == nit]
-        if usados:
-            return max(set(usados), key=usados.count)
+CONCEPTOS_RETENCION = ("compras", "servicios", "honorarios", "arriendos")
 
+
+def sugerir_concepto_retencion(cfg: Config, factura: dict) -> str:
+    """Concepto de retefuente de un gasto: compras / servicios / honorarios /
+    arriendos. Es lo que elige la tarifa correcta de retención.
+
+    La mayoría de una constructora son 'compras' (materiales); la IA detecta
+    los servicios, honorarios y arriendos, que llevan otra tarifa. Sin API
+    key o ante cualquier error se cae a 'compras', el caso más común — nunca
+    devuelve None: el usuario confirma en Revisión de todos modos."""
     cli = _cliente(cfg)
-    if cli is None or not tipos:
-        return None
-    nombres = {t["nombre"]: t["id"] for t in tipos}
+    if cli is None:
+        return "compras"
     try:
         resp = cli.chat.completions.create(
             model=cfg.llm_model,
@@ -164,8 +165,9 @@ def sugerir_tipo_gasto(
                 {
                     "role": "user",
                     "content": (
-                        "Clasifica este gasto de una constructora en UNA de estas categorías "
-                        f"(responde solo el nombre exacto): {list(nombres)}\n\n"
+                        "Para calcular la retención en la fuente, clasifica este gasto "
+                        "de una constructora en UNA palabra exacta de esta lista "
+                        f"(responde solo la palabra): {list(CONCEPTOS_RETENCION)}\n\n"
                         f"Proveedor: {factura.get('proveedor_nombre')}\n"
                         f"Descripción: {(factura.get('descripcion') or '')[:800]}"
                     ),
@@ -173,6 +175,7 @@ def sugerir_tipo_gasto(
             ],
             temperature=0,
         )
-        return nombres.get(resp.choices[0].message.content.strip())
+        r = (resp.choices[0].message.content or "").strip().lower()
+        return r if r in CONCEPTOS_RETENCION else "compras"
     except Exception:
-        return None
+        return "compras"

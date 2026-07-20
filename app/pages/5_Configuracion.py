@@ -9,8 +9,8 @@ sb, uid = db.requiere_sesion()
 
 st.title("⚙️ Configuración")
 
-tab_p, tab_t, tab_c, tab_r, tab_u = st.tabs(
-    ["🏗️ Proyectos", "🏷️ Tipos de gasto", "📐 Capítulos, actividades y residentes", "🧾 Reglas de retención", "📏 UVT"]
+tab_p, tab_c, tab_r, tab_u = st.tabs(
+    ["🏗️ Proyectos", "📐 Capítulos, actividades y residentes", "🧾 Reglas de retención", "📏 UVT"]
 )
 
 with tab_p:
@@ -199,21 +199,6 @@ with tab_p:
                     }
                 ).execute()
                 db.rerun()
-
-with tab_t:
-    tg = db.tipos_gasto(sb, uid)
-    if not tg.empty:
-        st.dataframe(tg[["nombre", "capitulo", "concepto_retencion", "activo"]], use_container_width=True)
-    with st.form("nuevo_tipo"):
-        c1, c2, c3 = st.columns(3)
-        n = c1.text_input("Nombre")
-        cap = c2.text_input("Capítulo de obra")
-        conc = c3.selectbox("Concepto de retención", ["compras", "servicios", "honorarios", "arriendos", "ninguno"])
-        if st.form_submit_button("Agregar tipo") and n:
-            sb.table("tipos_gasto").insert(
-                {"user_id": uid, "nombre": n, "capitulo": cap or None, "concepto_retencion": conc}
-            ).execute()
-            db.rerun()
 
 with tab_c:
     st.caption(

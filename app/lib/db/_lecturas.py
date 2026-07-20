@@ -46,11 +46,6 @@ def proyectos(_sb, uid) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=TTL_LECTURA, show_spinner=False)
-def tipos_gasto(_sb, uid) -> pd.DataFrame:
-    return df(_sb.table("tipos_gasto").select("*").eq("user_id", uid).order("nombre").execute())
-
-
-@st.cache_data(ttl=TTL_LECTURA, show_spinner=False)
 def capitulos(_sb, uid) -> pd.DataFrame:
     return df(_sb.table("capitulos").select("*").eq("user_id", uid).order("orden").order("nombre").execute())
 
@@ -199,7 +194,7 @@ def aplicar_asignaciones(detalle: pd.DataFrame, asig: pd.DataFrame) -> pd.DataFr
 _COLS_DETALLE = [
     "factura_id", "item_id", "fecha_emision", "numero", "proveedor_nombre",
     "descripcion", "cantidad", "valor", "sentido", "estado", "proyecto_id",
-    "residente_id", "corte_id", "tipo_gasto_id", "capitulo_id", "actividad_id",
+    "residente_id", "corte_id", "capitulo_id", "actividad_id",
 ]
 
 
@@ -207,7 +202,7 @@ def detalle_clasificado(fx: pd.DataFrame, items_all: pd.DataFrame) -> pd.DataFra
     """Una fila por artículo (con su propia clasificación), y una fila de
     respaldo por cada factura SIN detalle de artículos (manuales,
     consignaciones) usando la clasificación de la factura completa. Base
-    común para "Todas las facturas" y los reportes por capítulo/tipo.
+    común para "Todas las facturas" y los reportes por capítulo.
 
     Vectorizado: sobre 20.000 items el doble iterrows anterior tardaba y se
     ejecuta en cada rerun. El comportamiento (nota crédito resta, respaldo
@@ -274,7 +269,6 @@ def detalle_clasificado(fx: pd.DataFrame, items_all: pd.DataFrame) -> pd.DataFra
                 "proyecto_id": de_factura("proyecto_id"),
                 "residente_id": de_factura("residente_id"),
                 "corte_id": de_factura("corte_id"),
-                "tipo_gasto_id": item_o_factura("tipo_gasto_id"),
                 "capitulo_id": item_o_factura("capitulo_id"),
                 "actividad_id": item_o_factura("actividad_id"),
             })
@@ -306,7 +300,6 @@ def detalle_clasificado(fx: pd.DataFrame, items_all: pd.DataFrame) -> pd.DataFra
             "proyecto_id": fcol("proyecto_id").values,
             "residente_id": fcol("residente_id").values,
             "corte_id": fcol("corte_id").values,
-            "tipo_gasto_id": fcol("tipo_gasto_id").values,
             "capitulo_id": fcol("capitulo_id").values,
             "actividad_id": fcol("actividad_id").values,
         })

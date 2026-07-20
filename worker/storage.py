@@ -170,19 +170,6 @@ class Store:
         filas = self.sb.table("uvt").select("*").execute().data or []
         return {f["anio"]: float(f["valor"]) for f in filas}
 
-    def historial_clasificacion(self) -> list[dict]:
-        """Proveedor -> tipo de gasto más usado, para que la IA aprenda del pasado."""
-        r = (
-            self.sb.table("facturas")
-            .select("proveedor_nit, tipo_gasto_id, proyecto_id")
-            .eq("user_id", self.uid)
-            .neq("estado", "extraida")
-            .not_.is_("tipo_gasto_id", "null")
-            .limit(2000)
-            .execute()
-        )
-        return r.data or []
-
 
 def nombre_renombrado(factura: dict, codigo_proyecto: str | None = None) -> str:
     """AAAAMMDD-PROVEEDOR-NUMERO-FORMAPAGO-PROYECTO.pdf"""
