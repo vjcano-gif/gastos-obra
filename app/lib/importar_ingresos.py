@@ -162,4 +162,8 @@ def parsear_excel(contenido: bytes) -> pd.DataFrame:
             "modo_pago": modo_pago_slug(r.get("modo_pago")),
             "legalizacion": legalizacion_slug(r.get("legalizacion")),
         })
-    return pd.DataFrame(filas, columns=COLUMNAS)
+    salida = pd.DataFrame(filas, columns=COLUMNAS)
+    # Garantiza None (no NaN) en las celdas vacías: un NaN de pandas no es
+    # serializable a JSON y reventaba el insert a Supabase ("Out of range
+    # float values are not JSON compliant: nan").
+    return salida.astype(object).where(pd.notna(salida), None)

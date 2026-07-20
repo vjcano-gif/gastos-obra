@@ -100,6 +100,20 @@ def test_elige_la_hoja_matriz_ingresos_entre_varias():
     assert list(d.columns) == importar_ingresos.COLUMNAS   # sin Día/Mes/Año
 
 
+def test_celdas_vacias_son_none_no_nan():
+    """Un NaN de pandas no es serializable a JSON y reventaba el insert a
+    Supabase. Las celdas vacías deben salir como None."""
+    import math
+    contenido = _excel([
+        ["2025-01-24", "Smart Fit", "Sin Corte", None, 2552000, None, "Encima"],
+    ])
+    d = importar_ingresos.parsear_excel(contenido)
+    fila = d.iloc[0]
+    assert fila["detalle"] is None
+    assert fila["modo_pago"] == "por_identificar"
+    assert not any(isinstance(v, float) and math.isnan(v) for v in fila.tolist())
+
+
 def test_archivo_sin_columnas_esperadas_avisa():
     wb = Workbook()
     ws = wb.active
