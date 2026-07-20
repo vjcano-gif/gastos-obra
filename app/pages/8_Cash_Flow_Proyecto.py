@@ -7,11 +7,13 @@ ve SU obra y nada mas: ni proveedores, ni facturas individuales, ni las
 otras obras. Eso lo garantiza el RLS de la migracion 016, no esta
 pantalla; aqui solo se evita mostrar lo que ademas no debe pedirse.
 """
+from datetime import date
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from lib import db, viz
+from lib import db, informe_pdf, viz
 
 st.set_page_config(page_title="Cash Flow del proyecto", page_icon="💧", layout="wide")
 sb, uid = db.requiere_sesion()
@@ -160,3 +162,29 @@ else:
     top = matriz.reset_index().head(15).sort_values("Total")
     st.caption("Capítulos con mayor costo")
     viz.barras(top["capitulo"], top["Total"], key="cf_cap_bar")
+
+st.divider()
+
+# ------------------------------------------------------------ informe PDF
+st.subheader("📄 Informe para el cliente")
+st.caption(
+    "El mismo formato del Excel: portada de control de costos (capítulo × corte) "
+    "y cash flow por corte, con el logo. Descárgalo o envíalo desde **Estado de cuenta**."
+)
+periodo_txt = None
+if proyecto.get("fecha_inicio"):
+    periodo_txt = f"{db.texto(proyecto.get('fecha_inicio'))} a {date.today().isoformat()}"
+try:
+    pdf_bytes = informe_pdf.generar_informe(
+        proyecto.to_dict(),
+        tabla,
+        detalle if detalle is not None else pd.DataFrame(),
+        periodo=periodo_txt,
+    )
+    st.download_button(
+        "⬇️ Descargar informe PDF", data=pdf_bytes,
+        file_name=f"Informe {proyecto['nombre']}.pdf", mime="application/pdf",
+        use_container_width=True,
+    )
+except Exception as e:  # nunca tumbar la página por el PDF
+    st.warning(f"No se pudo generar el informe PDF: {e}")

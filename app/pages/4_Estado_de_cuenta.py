@@ -1,10 +1,11 @@
+import base64
 from datetime import date, timedelta
 
 import pandas as pd
 import requests as rq
 import streamlit as st
 
-from lib import db
+from lib import db, informe_pdf
 
 st.set_page_config(page_title="Estado de cuenta", page_icon="✉️", layout="wide")
 sb, uid = db.requiere_sesion()
@@ -83,6 +84,34 @@ texto = "\n".join(cuerpo)
 st.subheader("Vista previa")
 st.code(texto, language=None)
 
+# --- informe PDF con la estructura del Excel (portada + cash flow, con logo)
+# Se arma con TODO el proyecto (no solo el rango del texto), como el Cash Flow.
+st.subheader("📄 Informe PDF para adjuntar")
+pdf_informe = None
+try:
+    fx_proy = db.facturas(sb, uid, proyecto_id=p["id"])
+    cortes_p = db.cortes(sb, uid, p["id"])
+    cf_tabla = db.cash_flow(
+        fx_proy, db.anticipos(sb, uid, p["id"]), db.movimientos_caja(sb, uid, p["id"]),
+        cortes_p, float(p.get("pct_aiu") or 0), bool(p.get("exento_aiu")),
+    )
+    costo_cap = db.costo_por_capitulo_local(sb, uid, p["id"], fx_proy, cortes_p)
+    pdf_informe = informe_pdf.generar_informe(
+        p.to_dict(), cf_tabla,
+        costo_cap if costo_cap is not None else pd.DataFrame(), periodo=periodo,
+    )
+    st.download_button(
+        "⬇️ Descargar informe PDF", pdf_informe,
+        file_name=f"Informe {p['nombre']}.pdf", mime="application/pdf",
+    )
+except Exception as e:
+    st.warning(f"No se pudo generar el informe PDF: {e}")
+
+adjuntar_pdf = st.checkbox(
+    "Adjuntar el informe PDF al correo", value=pdf_informe is not None,
+    disabled=pdf_informe is None,
+)
+
 destino = st.text_input("Enviar a", value=p.get("cliente_email") or "")
 
 # Aviso de posible envío duplicado: mandar dos estados de cuenta seguidos
@@ -113,15 +142,21 @@ if st.button("📨 Enviar estado de cuenta", type="primary", disabled=not destin
             "para poder enviar correos."
         )
     else:
+        cuerpo_email = {
+            "from": remitente,
+            "to": [destino],
+            "subject": f"Estado de cuenta — {p['nombre']}",
+            "text": texto,
+        }
+        if adjuntar_pdf and pdf_informe:
+            cuerpo_email["attachments"] = [{
+                "filename": f"Informe {p['nombre']}.pdf",
+                "content": base64.b64encode(pdf_informe).decode(),
+            }]
         r = rq.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "from": remitente,
-                "to": [destino],
-                "subject": f"Estado de cuenta — {p['nombre']}",
-                "text": texto,
-            },
+            json=cuerpo_email,
             timeout=30,
         )
         if r.ok:
