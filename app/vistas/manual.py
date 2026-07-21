@@ -4,209 +4,268 @@ import streamlit as st
 
 from lib import db
 
-db.requiere_sesion()  # solo para exigir sesión; no usa los datos
+db.requiere_sesion()  # solo exige sesión; no usa los datos
 
 st.title("❓ Manual de usuario")
-st.caption("Guía práctica de cada módulo. Búscala aquí cuando tengas una duda.")
+st.caption("Guía paso a paso de cada módulo: de dónde sale la información, qué haces y qué se arma con eso.")
 
 st.markdown(
     """
-Esta aplicación lleva el **control de gastos e ingresos de cada obra**: recibe las
+Esta aplicación lleva el **control de gastos e ingresos de cada obra**. Recibe las
 facturas electrónicas por correo, las clasifica por proyecto/capítulo/actividad,
 calcula retención y comisión (AIU), controla lo que hay que pagar y lo que el
-cliente va abonando, y arma el **informe para el cliente** con la misma forma del
-Excel de control de costos.
+cliente abona, y arma el **informe para el cliente** con la misma forma del Excel
+de control de costos.
 """
 )
 
-# ---------------------------------------------------------------- flujo general
-st.header("🔄 Cómo funciona, de principio a fin")
+# ---------------------------------------------------------- puesta a punto
+st.header("🚀 Puesta a punto (la primera vez)")
 st.markdown(
     """
-1. **Llegan los documentos.** Un robot revisa el buzón de correo cada ~6 horas y
-   guarda las facturas electrónicas (XML/PDF) que encuentra. También puedes subir
-   archivos o registrar movimientos a mano.
-2. **Se revisan.** En **Revisión** le asignas a cada documento su proyecto,
-   capítulo y actividad, el método de pago y —si aplica— el corte de obra.
-3. **Se aprueban.** Un aprobador o el dueño marca la factura como **aprobada**.
-   Solo lo aprobado entra en el estado de cuenta del cliente.
-4. **Se controla la plata.** En **Cuentas por pagar** registras los pagos (con
-   comprobante); en **Ingresos** registras los abonos del cliente.
-5. **Se reporta.** El **Dashboard**, el **Cash Flow** y los **Compromisos**
-   muestran cómo va la obra; el **Estado de cuenta** arma el informe para el cliente.
+Si el workspace es nuevo, este es el orden recomendado (lo hace el **dueño** o un **editor**):
+
+1. **Configuración → Proyectos**: crea cada obra con su cliente, su **% de comisión (AIU)**
+   y, si la tienes, las fechas y el **cronograma de abonos**.
+2. **Configuración → Capítulos, actividades y residentes → Cargar el catálogo de obra**:
+   instala los capítulos y actividades estándar (sin esto no se puede clasificar ni
+   heredar clasificación).
+3. **Configuración → Reglas de retención y UVT**: revisa las tarifas y el valor de la UVT del año.
+4. **Importar matriz** (opcional): sube tu Excel histórico para heredar de una vez la
+   clasificación ya hecha a mano.
+5. **Ingresos → Importar matriz de ingresos** (opcional): sube el histórico de abonos del cliente.
+6. **Usuarios** (solo el dueño): invita al equipo y, si aplica, a los **clientes** (uno por obra).
+
+De ahí en adelante el día a día es solo **Revisión** (clasificar lo que llega) y consultar reportes.
 """
 )
 
-# ---------------------------------------------------------------- roles
+# ---------------------------------------------------------- flujo general
+st.header("🔄 Cómo circula la información")
+st.markdown(
+    """
+```
+Correo (facturas DIAN)  ─┐
+Carga manual / soporte  ─┼─►  REVISIÓN  ─►  (aprobación)  ─►  Reportes y Cash Flow
+Matriz histórica (Excel)─┘        │                              (Dashboard, Cash Flow,
+                                  │                               Cuentas por pagar, PyG…)
+Abonos del cliente ─► INGRESOS ───┘
+```
+- Un **robot revisa el buzón cada ~6 horas** y guarda las facturas electrónicas (XML/PDF).
+- En **Revisión** cada documento recibe su clasificación y se **aprueba**.
+- Todo lo demás (Dashboard, Cash Flow, Cuentas por pagar, informes) **se construye solo** a
+  partir de esa clasificación y de los abonos del cliente. No hay que recapturar nada.
+"""
+)
+
+# ---------------------------------------------------------- roles
 st.header("👤 Roles y permisos")
 st.markdown(
     """
 | Rol | Qué puede hacer |
 |---|---|
 | **Dueño** | Todo, incluido invitar/quitar usuarios. |
-| **Editor** | Registrar, clasificar, editar y pagar. No administra usuarios. |
+| **Editor** | Registrar, clasificar, editar, pagar e importar. No administra usuarios. |
 | **Aprobador** | Lo de editor **más** aprobar facturas. |
 | **Lector** | Solo consultar; no modifica datos. |
 | **Cliente** | Solo ve el **Cash Flow** de su propia obra. |
 
-El menú de la izquierda se adapta al rol: por ejemplo, **Usuarios** solo lo ve el
-dueño, y el cliente solo ve su obra.
+El menú de la izquierda se adapta al rol: **Usuarios** solo lo ve el dueño, y el cliente
+solo ve su obra.
 """
 )
 
-# ---------------------------------------------------------------- módulos
-st.header("📚 Módulos, uno por uno")
+
+def _modulo(titulo, sale, pasos, arma):
+    with st.expander(titulo):
+        st.markdown(f"**De dónde sale la información:** {sale}")
+        st.markdown("**Paso a paso:**")
+        st.markdown("\n".join(f"{i}. {p}" for i, p in enumerate(pasos, 1)))
+        st.markdown(f"**Qué se arma con esto:** {arma}")
+
+
+# ---------------------------------------------------------- módulos
+st.header("📚 Módulos, paso a paso")
 
 st.subheader("📥 Registro")
-with st.expander("📋 Revisión"):
-    st.markdown(
-        """
-El corazón del día a día. Muestra lo que llegó y aún no se ha clasificado.
-Por cada documento:
-- Asigna **proyecto**, **capítulo** y **actividad** (por artículo si la factura
-  trae detalle, o para toda la factura si no).
-- Elige el **método de pago** y, si aplica, el **corte de obra** y el **pagador**.
-- Usa el **previsualizador** para ver la factura real y el **segmentador de fechas**
-  para enfocarte en un período.
-- Cuando esté lista, **apruébala**. Solo lo aprobado llega al cliente.
-
-> El sistema sugiere el concepto de retención (compras / servicios / honorarios /
-> arriendos) para calcular la retefuente; verifícalo antes de aprobar.
-"""
-    )
-with st.expander("🗂️ Todas las facturas"):
-    st.markdown(
-        """
-La tabla completa, a nivel de artículo, con todos los filtros (proyecto, estado,
-capítulo, fechas). Sirve para **buscar, corregir y descargar** cualquier
-movimiento, esté aprobado o no. Es el mejor lugar para auditar o exportar a Excel.
-"""
-    )
-with st.expander("💵 Ingresos"):
-    st.markdown(
-        """
-Los **abonos del cliente** (la "matriz de ingresos"). Puedes:
-- **Registrar** un abono a mano (fecha, valor, corte, medio, si va por encima o
-  por debajo del presupuesto).
-- **📥 Importar la matriz de ingresos** desde tu Excel: empareja proyecto y corte
-  por nombre e inserta todos los abonos de una, **sin duplicar** los que ya estén.
-
-Estos abonos son los que alimentan la fila de **Ingresos** del Dashboard y del Cash Flow.
-"""
-    )
-with st.expander("📥 Importar matriz"):
-    st.markdown(
-        """
-Cargue masivo desde el Excel de movimientos: cruza lo del archivo contra lo que ya
-existe para no duplicar, y te muestra qué entra y qué queda pendiente. Úsalo para
-subir el histórico o una actualización grande de una sola vez.
-"""
-    )
+_modulo(
+    "📋 Revisión",
+    "Las facturas electrónicas que el **robot baja del correo** cada ~6 horas, más lo que "
+    "**subas a mano** (un PDF/imagen de soporte o un movimiento manual).",
+    [
+        "Usa el **segmentador de fechas** y los filtros para enfocarte en lo que llegó.",
+        "Abre un documento: revisa el **previsualizador** de la factura real.",
+        "Asígnale **proyecto**, **capítulo** y **actividad** (por artículo si trae detalle; "
+        "para toda la factura si no).",
+        "Elige el **método de pago** y, si aplica, el **corte de obra** y el **pagador**.",
+        "Verifica el **concepto de retención** sugerido (compras/servicios/honorarios/arriendos).",
+        "**Aprueba** la factura. Si algo está mal, puedes anularla.",
+    ],
+    "La **clasificación** que alimenta TODO lo demás: Dashboard, Cash Flow, control de "
+    "costos, retención y el estado de cuenta del cliente. Solo lo **aprobado** llega al cliente.",
+)
+_modulo(
+    "🗂️ Todas las facturas",
+    "Todo lo que ya está registrado, a nivel de **artículo** (aprobado o no).",
+    [
+        "Filtra por proyecto, estado, capítulo o fechas.",
+        "Corrige cualquier campo directamente.",
+        "Descarga la tabla a Excel para auditar o cruzar por fuera.",
+    ],
+    "Es tu vista de **auditoría y exportación**: el universo completo en una sola tabla.",
+)
+_modulo(
+    "💵 Ingresos",
+    "Los **abonos del cliente** (la 'matriz de ingresos'). No llegan por correo: se "
+    "registran a mano o se importan del Excel.",
+    [
+        "Registra un abono: fecha, valor, corte, medio y si va por encima/por debajo del presupuesto.",
+        "O usa **📥 Importar matriz de ingresos**: descarga la **plantilla**, llénala y súbela; "
+        "empareja proyecto y corte por nombre y **no duplica**.",
+        "Revisa el **cumplimiento**: lo recibido contra el cronograma pactado.",
+    ],
+    "La fila de **Ingresos** del Dashboard y del Cash Flow, y los ingresos previstos de "
+    "**Compromisos futuros**.",
+)
+_modulo(
+    "📥 Importar matriz",
+    "Tu Excel **MATRIZ Movimientos Contables** (histórico de gastos).",
+    [
+        "Descarga la **plantilla** para ver el formato exacto (se lee por posición de columna).",
+        "Sube el archivo y corre primero en **Simular** para ver qué pasaría.",
+        "Si el cruce se ve bien, corre en **Aplicar** para escribir en la base.",
+    ],
+    "Hereda la clasificación ya hecha a mano y la cruza con las facturas del correo, sin "
+    "recapturar. **Basta hacerlo una vez** (no duplica); repítelo solo si hay movimientos nuevos.",
+)
 
 st.subheader("📊 Reportes")
-with st.expander("📈 Dashboard"):
-    st.markdown(
-        """
-La foto del negocio: **gastos vs ingresos por mes**, saldo, y desglose por
-capítulo, con segmentador por proyecto. Los ingresos incluyen los abonos del
-cliente (no solo las facturas de ingreso).
-"""
-    )
-with st.expander("💧 Cash Flow del proyecto"):
-    st.markdown(
-        """
-El control de costos e ingresos de **una obra**, con la estructura de tu Excel:
-- **Portada / control de costos**: capítulo → actividad × corte, con su % de
-  participación.
-- **Cash Flow por corte**: saldo inicial, anticipos, gastos, AIU, egresos y saldo.
-- Botón **⬇️ Descargar informe PDF** con logo, colores y el detalle de anticipos,
-  listo para el cliente.
-"""
-    )
-with st.expander("🗓️ Flujo semanal"):
-    st.markdown(
-        "Lo **planeado vs lo realmente ejecutado** semana a semana, para ver si la "
-        "obra va al ritmo del presupuesto."
-    )
-with st.expander("📆 Compromisos futuros"):
-    st.markdown(
-        """
-Mira **N meses hacia adelante**: los **vencimientos por pagar** contra los
-**ingresos previstos** (los abonos programados en el cronograma). La línea de caja
-proyectada avisa en qué mes los pagos superan a los cobros esperados.
-"""
-    )
+_modulo(
+    "📈 Dashboard",
+    "Las facturas ya **clasificadas** más los **abonos** del cliente.",
+    [
+        "Elige un proyecto (o todos) con el segmentador.",
+        "Lee gastos vs ingresos por mes, el saldo y el desglose por capítulo.",
+    ],
+    "La **foto del negocio**: cómo va la plata mes a mes y en qué capítulos se concentra el gasto.",
+)
+_modulo(
+    "💧 Cash Flow del proyecto",
+    "Las facturas del proyecto, los **abonos**, los **cortes** y el **% de AIU** de la obra.",
+    [
+        "Elige el proyecto.",
+        "Lee el **control de costos** (capítulo → actividad × corte) y el **cash flow por corte** "
+        "(saldo inicial, anticipos, gastos, AIU, egresos y saldo).",
+        "Descarga el **informe PDF** con logo, colores y el detalle de anticipos, listo para el cliente.",
+    ],
+    "El equivalente exacto de tu Excel de control de costos, y el **informe que ve o recibe el cliente**.",
+)
+_modulo(
+    "🗓️ Flujo semanal",
+    "El **presupuesto por actividad** que cargas (a mano o por Excel) y el **gasto real** "
+    "(las facturas clasificadas).",
+    [
+        "En la pestaña **Presupuesto**, carga las líneas: una por una (al elegir capítulo salen "
+        "solo SUS actividades) o **masivo** con la plantilla.",
+        "Reparte cada línea por semanas.",
+        "En **Comparación**, mira planeado vs ejecutado y el desfase.",
+    ],
+    "Saber si la obra **va al ritmo** que se presupuestó, semana a semana.",
+)
+_modulo(
+    "📆 Compromisos futuros",
+    "Los **vencimientos** de las cuentas por pagar y los **abonos programados** en el cronograma del proyecto.",
+    [
+        "Elige el proyecto y cuántos meses mirar hacia adelante.",
+        "Compara, mes a mes, lo que hay que pagar contra lo que se debería cobrar.",
+    ],
+    "Una **proyección de caja**: la línea avisa en qué mes los pagos superan a los cobros previstos.",
+)
 
 st.subheader("💰 Tesorería")
-with st.expander("💳 Cuentas por pagar"):
-    st.markdown(
-        """
-Lo que se debe: vencimientos y saldos, con filtro por proyecto. Al registrar un
-**pago** anotas el **comprobante**, el **medio** y la **fecha**; la factura pasa a
-**parcial** o **pagada** según cubra el saldo, y se acumula el valor pagado.
-"""
-    )
-with st.expander("✉️ Estado de cuenta"):
-    st.markdown(
-        """
-El informe para el **cliente**: incluye solo lo **aprobado**, en el rango de fechas
-que elijas. Puedes **descargar el PDF** (mismo formato del Cash Flow) y **enviarlo
-por correo** con el PDF adjunto. Avisa si ya mandaste uno hace poco para no
-duplicar el envío.
-"""
-    )
+_modulo(
+    "💳 Cuentas por pagar",
+    "Las **facturas de gasto** con saldo pendiente.",
+    [
+        "Filtra por proyecto.",
+        "Abre una factura y registra el **pago** con **comprobante**, **medio** y **fecha**.",
+        "La factura pasa a **parcial** o **pagada** según cubra el saldo.",
+    ],
+    "El control de la **deuda** y el registro de **pagos** con su soporte.",
+)
+_modulo(
+    "✉️ Estado de cuenta",
+    "Las facturas **aprobadas** del proyecto, en el rango de fechas que elijas.",
+    [
+        "Elige el proyecto y el período.",
+        "Descarga el **PDF** (mismo formato del Cash Flow) o **adjúntalo** al correo.",
+        "Envíaselo al cliente; la app avisa si ya mandaste uno hace poco.",
+    ],
+    "El **informe formal para el cliente**, enviado por correo con su PDF adjunto.",
+)
 
 st.subheader("⚙️ Administración")
-with st.expander("⚙️ Configuración"):
-    st.markdown(
-        """
-El tablero de ajustes:
-- **Proyectos** (con fechas, cliente, % de comisión/AIU y cronograma de abonos).
-- **Capítulos, actividades y residentes**.
-- **Reglas de retención** y valor de la **UVT**.
-- **Dimensiones** editables (cortes, modos de pago, etc.).
-"""
-    )
-with st.expander("👥 Usuarios (solo el dueño)"):
-    st.markdown(
-        """
-Invitar o quitar personas del equipo y asignarles un rol. Para un **cliente**, se
-le asigna **un solo proyecto**: solo verá el Cash Flow de esa obra.
-"""
-    )
+_modulo(
+    "⚙️ Configuración",
+    "Lo que **defines tú** una vez: la base sobre la que corre todo lo demás.",
+    [
+        "**Proyectos**: cliente, % de comisión (AIU), fechas y **cronograma de abonos**.",
+        "**Capítulos, actividades y residentes**, incluido **cargar el catálogo de obra**.",
+        "**Reglas de retención** y valor de la **UVT** del año.",
+        "**Dimensiones** editables (cortes, modos de pago, etc.).",
+    ],
+    "El **catálogo y los parámetros** con los que se clasifica, se calcula retención/AIU y se arman los cortes.",
+)
+_modulo(
+    "👥 Usuarios (solo el dueño)",
+    "El equipo y los clientes que defina el dueño.",
+    [
+        "Invita a una persona con su **rol** (editor, aprobador, lector).",
+        "Para un **cliente**, asígnale **un solo proyecto**: solo verá el Cash Flow de esa obra.",
+        "Quita a quien ya no deba tener acceso.",
+    ],
+    "El **control de acceso** del equipo y la vista restringida del cliente.",
+)
 
-# ---------------------------------------------------------------- conceptos
+# ---------------------------------------------------------- conceptos
 st.header("💡 Conceptos clave")
 with st.expander("Capítulo y actividad"):
     st.markdown(
-        "El **capítulo** es el gran rubro de obra (Preliminares, Estructura, "
-        "Acabados…) y la **actividad** es el detalle dentro de él. Clasificar bien "
-        "es lo que hace que el control de costos cuadre."
+        "El **capítulo** es el gran rubro de obra (Preliminares, Estructura, Acabados…) y la "
+        "**actividad** es el detalle dentro de él. Clasificar bien es lo que hace que el control "
+        "de costos cuadre. El **catálogo** se carga en Configuración."
     )
 with st.expander("Corte de obra"):
     st.markdown(
-        "Un **corte** es un período de avance/cobro de la obra. Gastos e ingresos se "
-        "agrupan por corte para ver el flujo de caja etapa por etapa."
+        "Un **corte** es un período de avance/cobro de la obra. Gastos e ingresos se agrupan por "
+        "corte para ver el flujo de caja etapa por etapa (como las columnas de tu Excel)."
     )
 with st.expander("AIU / comisión"):
     st.markdown(
-        "El **AIU** (Administración, Imprevistos y Utilidad) es la comisión que se "
-        "calcula sobre los gastos según el % pactado en cada proyecto."
+        "El **AIU** (Administración, Imprevistos y Utilidad) es la comisión que se calcula sobre "
+        "los gastos según el % pactado en cada proyecto. Los **pagos directos del cliente** también "
+        "generan comisión pero no salen de la caja de la empresa."
     )
 with st.expander("Retención en la fuente y UVT"):
     st.markdown(
-        "La **retefuente** se calcula según el concepto (compras, servicios, "
-        "honorarios, arriendos), su tarifa y la **UVT** del año. La UVT se actualiza "
-        "en Configuración cada año."
+        "La **retefuente** se calcula según el concepto (compras, servicios, honorarios, arriendos), "
+        "su tarifa y la **UVT** del año. La UVT se actualiza en Configuración cada año."
     )
 with st.expander("Anticipos del cliente"):
     st.markdown(
-        "Los **anticipos** son los abonos que el cliente va consignando. Son los "
-        "**ingresos** reales de la obra y se registran en el módulo de Ingresos."
+        "Los **anticipos** son los abonos que el cliente va consignando. Son los **ingresos** reales "
+        "de la obra y se registran en el módulo de Ingresos (a mano o importados)."
+    )
+with st.expander("Estados de una factura"):
+    st.markdown(
+        "- **Extraída**: recién bajada del correo, sin revisar.\n"
+        "- **Aprobada**: ya revisada y clasificada; entra al estado de cuenta del cliente.\n"
+        "- **Pagada / Parcial**: según lo registrado en Cuentas por pagar.\n"
+        "- **Anulada**: no cuenta para nada."
     )
 
 st.divider()
 st.caption(
-    "¿Encontraste algo que el manual no explica o que la app podría hacer mejor? "
-    "Coméntalo con quien administra la cuenta para incluirlo."
+    "¿Algo que el manual no explique o que la app podría hacer mejor? Coméntalo con quien "
+    "administra la cuenta para incluirlo."
 )

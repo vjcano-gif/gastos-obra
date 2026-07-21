@@ -27,7 +27,7 @@ pr = db.proyectos(sb, uid)
 nombre_pr = dict(zip(pr["id"], pr["nombre"])) if not pr.empty else {}
 
 # --- filtro por proyecto (lista desplegable, aguanta cientos de obras)
-_, pid_filtro = viz.selector_proyecto(pr, key="cpp_proy")
+_, pid_filtro = viz.selector_proyecto(pr, key="cpp_filtro_proy")
 if pid_filtro is not None:
     fx = fx[fx["proyecto_id"] == pid_filtro]
 

@@ -103,14 +103,28 @@ ETIQUETAS = {
 }
 
 vista = tabla.reindex(list(ETIQUETAS)).rename(index=ETIQUETAS)
+
+# Colorimetría igual que su hoja / el PDF: anticipos en verde, subtotal y
+# saldos en gris, total egresos en rojo, y cualquier valor NEGATIVO en rojo.
+_FILA_BG = {
+    "Anticipos del cliente": "background-color:#d9ead3;font-weight:bold",
+    "Subtotal (sale de caja)": "background-color:#efefef;font-weight:bold",
+    "Total egresos": "background-color:#f4cccc;font-weight:bold",
+    "Saldo en caja": "background-color:#efefef;font-weight:bold",
+    "Saldo inicial de caja": "background-color:#f6f6f6",
+}
+
+
+def _fondo_fila(fila):
+    return [_FILA_BG.get(fila.name, "") for _ in fila]
+
+
+def _rojo_negativo(v):
+    return "color:#c00000" if isinstance(v, (int, float)) and v < 0 else ""
+
+
 st.dataframe(
-    vista.style.format(db.cop).apply(
-        lambda fila: [
-            "font-weight:bold" if fila.name in ("Saldo en caja", "Total egresos") else ""
-            for _ in fila
-        ],
-        axis=1,
-    ),
+    vista.style.format(db.cop).apply(_fondo_fila, axis=1).map(_rojo_negativo),
     use_container_width=True,
 )
 
@@ -153,7 +167,8 @@ else:
 
     st.dataframe(
         matriz.style.format({**{c: db.cop for c in matriz.columns if c != "Part. %"},
-                             "Part. %": "{:.1f}%"}),
+                             "Part. %": "{:.1f}%"})
+        .set_properties(subset=["Total", "Part. %"], **{"font-weight": "bold"}),
         use_container_width=True,
     )
     # Barras con etiqueta de dato (no px sin etiqueta), de menor a mayor

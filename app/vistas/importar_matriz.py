@@ -38,6 +38,13 @@ st.caption(
     "ya está hecha a mano (proyecto, capítulo, actividad y corte), sin pisar "
     "nada de lo que ya se haya clasificado en la app."
 )
+st.info(
+    "📌 **Basta hacerlo una vez.** La importación es reejecutable y **no "
+    "duplica**: si vuelves a subir el mismo archivo, no pasa nada. Solo tiene "
+    "sentido repetirla cuando el Excel histórico traiga **movimientos nuevos** "
+    "que aún no estén en la app.",
+    icon="ℹ️",
+)
 
 # Sin el catálogo cargado no hay con qué emparejar capítulos y actividades:
 # se avisa antes de que alguien corra la importación y salga sin clasificar.

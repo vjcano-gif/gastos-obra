@@ -76,6 +76,36 @@ def matriz_ingresos() -> bytes:
     return buf.getvalue()
 
 
+# ------------------------------------------------------------ presupuesto
+ENCABEZADOS_PRESUPUESTO = ["Capítulo", "Actividad", "Subactividad", "Unidad",
+                          "Cantidad", "Costo unitario", "Costo total"]
+
+
+def presupuesto() -> bytes:
+    """Plantilla del PRESUPUESTO por actividad (flujo semanal)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "PRESUPUESTO"
+    _titulos(ws, ENCABEZADOS_PRESUPUESTO, ancho_min=16)
+    ws.append(["EXCAVACIONES, FUNDACIONES Y CONCRETOS", "Fundaciones",
+               "Vaciado de zapatas", "m3", 120, 450000, 54000000])
+    ws.append(["MAMPOSTERIA", "", "Muros en bloque", "m2", 300, 38000, 11400000])
+    _hoja_instrucciones(wb, [
+        ["Capítulo", "Nombre del capítulo, tal como está en la app.", "MAMPOSTERIA"],
+        ["Actividad", "Actividad del capítulo (opcional).", "Fundaciones"],
+        ["Subactividad", "Detalle libre de la línea (opcional).", "Vaciado de zapatas"],
+        ["Unidad", "Unidad de medida.", "m3 / m2 / gl / uds"],
+        ["Cantidad", "Cantidad presupuestada.", "120"],
+        ["Costo unitario", "Valor por unidad, en pesos sin puntos.", "450000"],
+        ["Costo total", "Valor total; si se deja vacío se calcula cantidad × unitario.", "54000000"],
+        ["", "La app empareja Capítulo y Actividad por nombre. Debe existir al "
+         "menos uno de: capítulo, actividad o subactividad, y un valor.", ""],
+    ])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 # ----------------------------------------------------------------- gastos
 # La hoja "MATRIZ GASTOS" se lee por POSICIÓN de columna (los encabezados del
 # archivo real traen espacios y tildes inconsistentes). Este es el nombre

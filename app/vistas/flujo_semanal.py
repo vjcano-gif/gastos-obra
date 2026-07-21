@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from lib import db
+from lib import db, importar_presupuesto, plantillas
 
 sb, uid = db.requiere_sesion()
 
@@ -124,13 +124,90 @@ with tab_ppto:
         st.metric("Presupuesto total del proyecto", db.cop(ppto["costo_total"].sum()))
 
     if puede_editar:
+        # ---------------------------------- carga masiva del presupuesto (Excel)
+        with st.expander("📥 Cargar presupuesto masivo (Excel)"):
+            st.caption(
+                "Sube el presupuesto por actividad de este proyecto. Empareja "
+                "capítulo y actividad por nombre y no duplica lo ya cargado."
+            )
+            st.download_button(
+                "⬇️ Descargar plantilla", data=plantillas.presupuesto(),
+                file_name="plantilla_presupuesto.xlsx", mime=plantillas.MIME_XLSX,
+                help="Columnas correctas, ejemplo e instrucciones.",
+            )
+            archivo_p = st.file_uploader("Archivo .xlsx", type=["xlsx"], key="imp_ppto")
+            if archivo_p is not None:
+                try:
+                    nuevas = importar_presupuesto.parsear_excel(archivo_p.getvalue())
+                except Exception as e:
+                    st.error(f"No se pudo leer el archivo: {e}")
+                    nuevas = None
+                if nuevas is not None and nuevas.empty:
+                    st.warning("El archivo no tiene líneas de presupuesto válidas.")
+                elif nuevas is not None:
+                    _n = importar_presupuesto._norm
+                    cap_por_nombre = {_n(v): k for k, v in nom_cap.items()}
+                    act_por_nombre = {_n(v): k for k, v in nom_act.items()}
+                    existentes = {
+                        (r.get("capitulo_id"), r.get("actividad_id"), _n(r.get("subactividad")))
+                        for _, r in ppto.iterrows()
+                    }
+                    a_insertar, sin_cap = [], set()
+                    for _, r in nuevas.iterrows():
+                        cid = cap_por_nombre.get(_n(r["capitulo"])) if r["capitulo"] else None
+                        aid = act_por_nombre.get(_n(r["actividad"])) if r["actividad"] else None
+                        if r["capitulo"] and cid is None:
+                            sin_cap.add(r["capitulo"])
+                        clave = (cid, aid, _n(r["subactividad"]))
+                        if clave in existentes:
+                            continue
+                        existentes.add(clave)
+                        a_insertar.append({
+                            "user_id": uid, "proyecto_id": proyecto_id,
+                            "capitulo_id": cid, "actividad_id": aid,
+                            "subactividad": r["subactividad"], "unidad": r["unidad"],
+                            "cantidad": float(r["cantidad"] or 0),
+                            "costo_unitario": float(r["costo_unitario"] or 0),
+                            "costo_total": float(r["costo_total"] or 0),
+                            "orden": len(ppto) + len(a_insertar),
+                        })
+                    st.dataframe(
+                        nuevas.assign(**{"Costo total": nuevas["costo_total"].map(db.cop)})[
+                            ["capitulo", "actividad", "subactividad", "unidad", "cantidad", "Costo total"]
+                        ],
+                        use_container_width=True, hide_index=True,
+                    )
+                    c1, c2 = st.columns(2)
+                    c1.metric("Líneas nuevas", len(a_insertar))
+                    c2.metric("Sin capítulo en la app", len(sin_cap))
+                    if sin_cap:
+                        st.warning(
+                            "Capítulos del archivo que no existen en la app (créalos en "
+                            "Configuración): " + ", ".join(sorted(sin_cap))
+                        )
+                    if a_insertar and st.button(f"✅ Cargar {len(a_insertar)} líneas"):
+                        for i in range(0, len(a_insertar), 200):
+                            sb.table("presupuesto").insert(a_insertar[i:i + 200]).execute()
+                        st.success(f"{len(a_insertar)} líneas cargadas.")
+                        db.rerun()
+
+        # -------------------------------------- nueva línea individual (cascada)
+        st.markdown("**Nueva línea de presupuesto**")
+        # El capítulo va FUERA del form para que, al cambiarlo, se filtren SUS
+        # actividades (un form no refresca hasta enviar).
+        ops_cap = {"— sin capítulo —": None} | {v: k for k, v in nom_cap.items()}
+        cap_sel = st.selectbox("Capítulo", list(ops_cap), key="ppto_cap_nueva")
+        cap_id_sel = ops_cap[cap_sel]
+        if cap_id_sel and not act.empty and "capitulo_id" in act.columns:
+            act_cap = act[act["capitulo_id"] == cap_id_sel]
+        else:
+            act_cap = act.iloc[0:0]           # sin capítulo -> primero elige uno
+        ops_act = {"— sin actividad —": None} | (
+            {r["nombre"]: r["id"] for _, r in act_cap.iterrows()} if not act_cap.empty else {}
+        )
         with st.form("nueva_linea_ppto"):
-            st.markdown("**Nueva línea de presupuesto**")
-            ops_cap = {"— sin capítulo —": None} | {v: k for k, v in nom_cap.items()}
-            ops_act = {"— sin actividad —": None} | {v: k for k, v in nom_act.items()}
-            l1, l2 = st.columns(2)
-            cap_sel = l1.selectbox("Capítulo", list(ops_cap))
-            act_sel = l2.selectbox("Actividad", list(ops_act))
+            act_sel = st.selectbox("Actividad", list(ops_act),
+                                   help="Solo las actividades del capítulo elegido arriba.")
             sub = st.text_input("Subactividad", help="Ej: Vaciado de loza, Bomba, Casetones")
             m1, m2, m3 = st.columns(3)
             unidad = m1.text_input("Unidad", value="gl", help="mt2, uds, gl…")
@@ -148,7 +225,7 @@ with tab_ppto:
                     {
                         "user_id": uid,
                         "proyecto_id": proyecto_id,
-                        "capitulo_id": ops_cap[cap_sel],
+                        "capitulo_id": cap_id_sel,
                         "actividad_id": ops_act[act_sel],
                         "subactividad": sub or None,
                         "unidad": unidad or None,
