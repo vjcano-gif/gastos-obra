@@ -17,7 +17,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from lib import db
+from lib import db, plantillas
 
 # El worker vive fuera de app/, que es lo único que Streamlit pone en el path.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -52,6 +52,12 @@ if con_codigo == 0:
 else:
     st.success(f"Catálogo listo: {con_codigo} capítulos con código.")
 
+st.download_button(
+    "⬇️ Descargar plantilla", data=plantillas.matriz_gastos(),
+    file_name="plantilla_matriz_gastos.xlsx", mime=plantillas.MIME_XLSX,
+    help="Reproduce las columnas por posición que lee el importador, con un "
+         "ejemplo y una hoja de instrucciones.",
+)
 archivo = st.file_uploader("Archivo de la matriz (.xlsx)", type=["xlsx"])
 
 modo = st.radio(

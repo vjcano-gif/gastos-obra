@@ -9,7 +9,7 @@ from datetime import date
 
 import streamlit as st
 
-from lib import db, importar_ingresos, viz
+from lib import db, importar_ingresos, plantillas, viz
 
 sb, uid = db.requiere_sesion()
 
@@ -93,6 +93,11 @@ if puede:
             "Detalle, Total, Modo de Pago, Encima/Debajo). Empareja proyecto y corte por "
             "nombre e inserta los abonos de **todas** las obras del archivo, sin duplicar "
             "los que ya estén cargados."
+        )
+        st.download_button(
+            "⬇️ Descargar plantilla", data=plantillas.matriz_ingresos(),
+            file_name="plantilla_matriz_ingresos.xlsx", mime=plantillas.MIME_XLSX,
+            help="Archivo con las columnas correctas, un ejemplo y una hoja de instrucciones.",
         )
         archivo_x = st.file_uploader("Archivo .xlsx", type=["xlsx"], key="imp_ingresos")
         if archivo_x is not None:
