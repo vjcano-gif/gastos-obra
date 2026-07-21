@@ -13,10 +13,16 @@ from lib import db
 st.set_page_config(page_title="Gastos de obra", page_icon="🏗️", layout="wide")
 
 sb, uid = db.requiere_sesion()
-db.sembrar_si_vacio(sb, uid)
-db.sembrar_capitulos_si_vacio(sb, uid)
 
 rol = db.mi_rol(sb, uid)
+
+# Sembrar (reglas de retención, UVT, catálogo) es una tarea de PUESTA A PUNTO
+# del dueño. Solo él tiene permiso de escribir esas tablas: si lo intentara un
+# cliente o un editor, `reglas_retencion` está vedada por RLS —el SELECT vuelve
+# vacío y el INSERT es rechazado—, lo que tumbaba la app entera al entrar.
+if db.es_dueno(uid):
+    db.sembrar_si_vacio(sb, uid)
+    db.sembrar_capitulos_si_vacio(sb, uid)
 
 
 def _p(archivo, titulo, icono, default=False):

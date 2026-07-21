@@ -254,6 +254,10 @@ def _portada(pdf: _Informe, costo: pd.DataFrame):
                   [(_pesos(cap_total), total_w, True), (f"{pct:.2f}%", part_w, True)],
                   label_w, val_w, fs, h, fill=VERDE_BG, bold=True)
         for (_o, _c, act), fila_act in sub.groupby(level=[0, 1, 2]):
+            # En modo solo-capítulo (informe del cliente) la actividad es "",
+            # sintética: no se dibuja o duplicaría la fila del capítulo.
+            if not str(act).strip():
+                continue
             vals = [float(fila_act[c].iloc[0]) for c in cortes]
             if sum(abs(v) for v in vals) == 0:
                 continue
