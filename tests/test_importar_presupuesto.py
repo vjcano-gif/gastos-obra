@@ -57,12 +57,28 @@ def test_archivo_sin_columnas_avisa():
         pass
 
 
-def test_plantilla_presupuesto_la_lee_su_parser():
-    """La plantilla debe subirse sin novedad por el mismo parser."""
+def test_plantilla_presupuesto_la_lee_su_parser_y_omite_el_ejemplo():
+    """La plantilla la lee el parser sin error y su fila de ejemplo (EJEMPLO)
+    no se importa: subirla tal cual no crea líneas falsas."""
     d = importar_presupuesto.parsear_excel(plantillas.presupuesto())
-    assert len(d) == 2
-    assert d.iloc[0]["capitulo"] == "EXCAVACIONES, FUNDACIONES Y CONCRETOS"
-    assert d.iloc[0]["costo_total"] == 54000000
+    assert d.empty
+    assert list(d.columns) == importar_presupuesto.COLUMNAS
+
+
+def test_omite_filas_marcadas_ejemplo():
+    d = importar_presupuesto.parsear_excel(_excel([
+        ["EJEMPLO (borre esta fila) — MAMPOSTERIA", "Muros", "Bloque", "m2", 1, 1, 999],
+        ["ESTRUCTURA", "Columnas", "", "m3", 10, 450000, None],
+    ]))
+    assert len(d) == 1
+    assert d.iloc[0]["capitulo"] == "ESTRUCTURA"
+
+
+def test_num_respeta_punto_decimal_y_miles():
+    assert importar_presupuesto._num("1.234.567") == 1234567     # miles colombianos
+    assert importar_presupuesto._num("1234.5") == 1234.5         # punto decimal, ya no se borra
+    assert importar_presupuesto._num("54.000,50") == 54000.5     # miles + coma decimal
+    assert importar_presupuesto._num(450000) == 450000.0
 
 
 if __name__ == "__main__":

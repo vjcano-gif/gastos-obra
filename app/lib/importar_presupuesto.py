@@ -4,9 +4,12 @@ actividad por nombre e inserta. Contraparte de plantillas.presupuesto()."""
 from __future__ import annotations
 
 import io
+import re
 import unicodedata
 
 import pandas as pd
+
+MARCA_EJEMPLO = "ejemplo"   # fila de ejemplo de la plantilla: no se importa
 
 _ENCABEZADOS = {
     "capitulo": "capitulo",
@@ -43,7 +46,11 @@ def _num(v) -> float:
     s = str(v).strip().replace("$", "").replace(" ", "")
     if not s:
         return 0.0
-    s = s.replace(".", "").replace(",", ".")   # formato colombiano
+    if "," in s:                                    # coma decimal: los '.' son miles
+        s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(\.\d{3})+", s):   # 1.234.567 -> miles
+        s = s.replace(".", "")
+    # si no, se deja tal cual: un punto decimal ('1234.5') se respeta
     try:
         return float(s)
     except ValueError:
@@ -68,6 +75,8 @@ def parsear_excel(contenido: bytes) -> pd.DataFrame:
     filas = []
     for _, r in d.iterrows():
         cap, act, sub = _txt(r.get("capitulo")), _txt(r.get("actividad")), _txt(r.get("subactividad"))
+        if _norm(cap).startswith(MARCA_EJEMPLO):     # fila de ejemplo de la plantilla
+            continue
         cant, unit = _num(r.get("cantidad")), _num(r.get("costo_unitario"))
         total = _num(r.get("costo_total")) or round(cant * unit, 2)
         if not (cap or act or sub) or total <= 0:

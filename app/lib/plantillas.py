@@ -9,6 +9,7 @@ su plantilla debe cambiar aquí también — el test lo verifica.
 from __future__ import annotations
 
 import io
+from functools import lru_cache
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -16,7 +17,11 @@ from openpyxl.styles import Alignment, Font, PatternFill
 MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 _NARANJA = "D85A30"
-_GRIS = "EEEEEE"
+
+# Las filas de ejemplo de las plantillas empiezan con esta marca para que se
+# vea el formato pero los importadores las IGNOREN si el usuario olvida
+# borrarlas (si no, se colarían como datos reales a la base).
+_EJEMPLO = "EJEMPLO (borre esta fila) — "
 
 
 def _titulos(ws, headers, ancho_min=12):
@@ -51,17 +56,18 @@ ENCABEZADOS_INGRESOS = ["Fecha", "Proyecto", "Corte", "Detalle", "Total",
                         "Modo de Pago", "Encima / Debajo"]
 
 
+@lru_cache(maxsize=1)
 def matriz_ingresos() -> bytes:
     """Plantilla de la MATRIZ DE INGRESOS (abonos del cliente)."""
     wb = Workbook()
     ws = wb.active
     ws.title = "MATRIZ INGRESOS"
     _titulos(ws, ENCABEZADOS_INGRESOS, ancho_min=16)
-    ws.append(["2025-01-24", "Arrayanes 40", "Corte 1", "Transferencia RC 71",
+    ws.append(["2025-01-24", _EJEMPLO + "Arrayanes 40", "Corte 1", "Transferencia RC 71",
                80000000, "Transferencia", "Encima"])
-    ws.append(["2025-02-13", "Casa Vieja 47", "Sin Corte", "Consignación Zular",
-               45000000, "Consignación", "Debajo"])
     _hoja_instrucciones(wb, [
+        ["(ejemplo)", "La primera fila viene marcada 'EJEMPLO': muestra el formato "
+         "y la app la IGNORA al importar. Bórrela o reemplácela con sus datos.", ""],
         ["Fecha", "Fecha del abono del cliente.", "2025-01-24 o 24/01/2025"],
         ["Proyecto", "Nombre EXACTO del proyecto, tal como está creado en la app.", "Arrayanes 40"],
         ["Corte", "Corte de obra al que aplica; vacío o 'Sin Corte' si no aplica.", "Corte 1"],
@@ -81,16 +87,18 @@ ENCABEZADOS_PRESUPUESTO = ["Capítulo", "Actividad", "Subactividad", "Unidad",
                           "Cantidad", "Costo unitario", "Costo total"]
 
 
+@lru_cache(maxsize=1)
 def presupuesto() -> bytes:
     """Plantilla del PRESUPUESTO por actividad (flujo semanal)."""
     wb = Workbook()
     ws = wb.active
     ws.title = "PRESUPUESTO"
     _titulos(ws, ENCABEZADOS_PRESUPUESTO, ancho_min=16)
-    ws.append(["EXCAVACIONES, FUNDACIONES Y CONCRETOS", "Fundaciones",
+    ws.append([_EJEMPLO + "EXCAVACIONES, FUNDACIONES Y CONCRETOS", "Fundaciones",
                "Vaciado de zapatas", "m3", 120, 450000, 54000000])
-    ws.append(["MAMPOSTERIA", "", "Muros en bloque", "m2", 300, 38000, 11400000])
     _hoja_instrucciones(wb, [
+        ["(ejemplo)", "La primera fila viene marcada 'EJEMPLO': muestra el formato "
+         "y la app la IGNORA al importar. Bórrela o reemplácela con sus datos.", ""],
         ["Capítulo", "Nombre del capítulo, tal como está en la app.", "MAMPOSTERIA"],
         ["Actividad", "Actividad del capítulo (opcional).", "Fundaciones"],
         ["Subactividad", "Detalle libre de la línea (opcional).", "Vaciado de zapatas"],
@@ -124,6 +132,7 @@ _COLS_GASTOS = {
 }
 
 
+@lru_cache(maxsize=1)
 def matriz_gastos() -> bytes:
     """Plantilla de la MATRIZ GASTOS (movimientos contables), respetando las
     posiciones de columna que lee el importador."""
@@ -134,7 +143,7 @@ def matriz_gastos() -> bytes:
     headers = [_COLS_GASTOS.get(i, "") for i in range(1, n + 1)]
     _titulos(ws, headers, ancho_min=10)
     ejemplo = {
-        1: "Arrayanes 40", 2: "2", 3: "EXCAVACIONES, FUNDACIONES Y CONCRETOS",
+        1: _EJEMPLO + "Arrayanes 40", 2: "2", 3: "EXCAVACIONES, FUNDACIONES Y CONCRETOS",
         4: "Corte 1", 5: "2.02", 6: "Fundaciones", 7: "2025-03-15",
         12: "Ferretería El Roble SAS", 13: "900123456", 15: "Factura de venta",
         16: "FE-4256", 17: "Cemento y varilla", 18: 5000000, 19: 0, 20: 950000,
@@ -145,6 +154,8 @@ def matriz_gastos() -> bytes:
     }
     ws.append([ejemplo.get(i, "") for i in range(1, n + 1)])
     _hoja_instrucciones(wb, [
+        ["(ejemplo)", "La primera fila viene marcada 'EJEMPLO' y la app la IGNORA "
+         "al importar. Bórrela o reemplácela con sus datos.", ""],
         ["(importante)", "La hoja se lee por POSICIÓN de columna: no muevas, "
          "insertes ni borres columnas; deja en blanco las que no uses.",
          "El importador cruza contra las facturas que ya llegaron por correo."],

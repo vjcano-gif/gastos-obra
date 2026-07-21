@@ -13,9 +13,15 @@ Streamlit ni Supabase.
 from __future__ import annotations
 
 import io
+import re
 import unicodedata
 
 import pandas as pd
+
+# Fila de ejemplo de las plantillas: su primera celda (Proyecto) empieza así
+# para que se pueda ver el formato pero NO se importe si el usuario olvida
+# borrarla.
+MARCA_EJEMPLO = "ejemplo"
 
 # Cómo se llama cada columna de la tabla `anticipos` según el encabezado del
 # Excel (normalizado: sin tildes, en minúscula, sin espacios de más).
@@ -54,8 +60,11 @@ def _num(v) -> float:
     s = str(v).strip().replace("$", "").replace(" ", "")
     if not s:
         return 0.0
-    # formato colombiano: '.' separa miles, ',' los decimales
-    s = s.replace(".", "").replace(",", ".")
+    if "," in s:                                    # coma decimal: los '.' son miles
+        s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(\.\d{3})+", s):   # 1.234.567 -> miles
+        s = s.replace(".", "")
+    # si no, se deja tal cual: un punto decimal ('1234.5') se respeta
     try:
         return float(s)
     except ValueError:
@@ -148,6 +157,8 @@ def parsear_excel(contenido: bytes) -> pd.DataFrame:
     filas = []
     for _, r in d.iterrows():
         proyecto = _txt(r.get("proyecto"))
+        if _norm(proyecto).startswith(MARCA_EJEMPLO):   # fila de ejemplo de la plantilla
+            continue
         valor = _num(r.get("valor"))
         if not proyecto or valor <= 0:
             continue

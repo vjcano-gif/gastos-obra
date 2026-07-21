@@ -147,18 +147,33 @@ with tab_ppto:
                 elif nuevas is not None:
                     _n = importar_presupuesto._norm
                     cap_por_nombre = {_n(v): k for k, v in nom_cap.items()}
-                    act_por_nombre = {_n(v): k for k, v in nom_act.items()}
+                    # La actividad se empareja DENTRO de su capítulo: los nombres
+                    # solo son únicos por capítulo (unique user_id,capitulo_id,nombre),
+                    # así que emparejar por nombre global pegaría el id equivocado.
+                    act_por_clave = {}
+                    if not act.empty and "capitulo_id" in act.columns:
+                        for _, a in act.iterrows():
+                            act_por_clave[(a["capitulo_id"], _n(a["nombre"]))] = a["id"]
+
+                    def _clave(cid, aid, sub, cant, total):
+                        return (cid, aid, _n(sub), round(float(cant or 0), 2), round(float(total or 0), 2))
+
+                    # Dedup contra lo que YA está en la base (incluye cantidad y
+                    # total, para no colapsar dos líneas distintas del mismo rubro).
                     existentes = {
-                        (r.get("capitulo_id"), r.get("actividad_id"), _n(r.get("subactividad")))
+                        _clave(r.get("capitulo_id"), r.get("actividad_id"),
+                               r.get("subactividad"), r.get("cantidad"), r.get("costo_total"))
                         for _, r in ppto.iterrows()
                     }
-                    a_insertar, sin_cap = [], set()
+                    a_insertar, sin_cap, sin_act = [], set(), set()
                     for _, r in nuevas.iterrows():
                         cid = cap_por_nombre.get(_n(r["capitulo"])) if r["capitulo"] else None
-                        aid = act_por_nombre.get(_n(r["actividad"])) if r["actividad"] else None
                         if r["capitulo"] and cid is None:
                             sin_cap.add(r["capitulo"])
-                        clave = (cid, aid, _n(r["subactividad"]))
+                        aid = act_por_clave.get((cid, _n(r["actividad"]))) if (cid and r["actividad"]) else None
+                        if r["actividad"] and aid is None:
+                            sin_act.add(r["actividad"])
+                        clave = _clave(cid, aid, r["subactividad"], r["cantidad"], r["costo_total"])
                         if clave in existentes:
                             continue
                         existentes.add(clave)
@@ -177,13 +192,20 @@ with tab_ppto:
                         ],
                         use_container_width=True, hide_index=True,
                     )
-                    c1, c2 = st.columns(2)
+                    c1, c2, c3 = st.columns(3)
                     c1.metric("Líneas nuevas", len(a_insertar))
-                    c2.metric("Sin capítulo en la app", len(sin_cap))
+                    c2.metric("Sin capítulo", len(sin_cap))
+                    c3.metric("Sin actividad", len(sin_act))
                     if sin_cap:
                         st.warning(
                             "Capítulos del archivo que no existen en la app (créalos en "
                             "Configuración): " + ", ".join(sorted(sin_cap))
+                        )
+                    if sin_act:
+                        st.warning(
+                            "Actividades que no coinciden con ninguna del capítulo "
+                            "indicado (la línea entra sin actividad; revisa el nombre): "
+                            + ", ".join(sorted(sin_act))
                         )
                     if a_insertar and st.button(f"✅ Cargar {len(a_insertar)} líneas"):
                         for i in range(0, len(a_insertar), 200):

@@ -161,6 +161,8 @@ def leer_gastos(hoja) -> list[dict]:
     for n, fila in enumerate(it, start=2):
         if len(fila) <= COL["comision"] or not fila[COL["proyecto"]]:
             continue
+        if str(fila[COL["proyecto"]]).strip().lower().startswith("ejemplo"):
+            continue                                    # fila de ejemplo de la plantilla
         filas.append(
             {
                 "fila_excel": n,
@@ -234,6 +236,8 @@ def leer_ingresos(hoja) -> list[dict]:
     for n, fila in enumerate(it, start=2):
         if len(fila) < 10 or not fila[4] or not isinstance(fila[7], (int, float)):
             continue
+        if str(fila[4]).strip().lower().startswith("ejemplo"):
+            continue                                    # fila de ejemplo de la plantilla
         filas.append(
             {
                 "fila_excel": n,

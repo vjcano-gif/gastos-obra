@@ -114,6 +114,23 @@ def test_celdas_vacias_son_none_no_nan():
     assert not any(isinstance(v, float) and math.isnan(v) for v in fila.tolist())
 
 
+def test_omite_filas_marcadas_ejemplo():
+    """La fila de ejemplo de la plantilla (Proyecto 'EJEMPLO …') no se importa."""
+    contenido = _excel([
+        ["2025-01-24", "EJEMPLO (borre esta fila) — Arrayanes 40", "Corte 1", "x", 80000000, "Transferencia", "Encima"],
+        ["2025-02-01", "Casa Vieja 47", "", "y", 5000000, "Efectivo", "Encima"],
+    ])
+    d = importar_ingresos.parsear_excel(contenido)
+    assert len(d) == 1
+    assert d.iloc[0]["proyecto"] == "Casa Vieja 47"
+
+
+def test_num_respeta_punto_decimal():
+    assert importar_ingresos._num("103.311.060") == 103311060      # miles
+    assert importar_ingresos._num("1234.5") == 1234.5              # decimal, ya no se borra
+    assert importar_ingresos._num("$ 45.000,75") == 45000.75       # miles + coma decimal
+
+
 def test_archivo_sin_columnas_esperadas_avisa():
     wb = Workbook()
     ws = wb.active
