@@ -15,7 +15,6 @@ import streamlit as st
 
 from lib import db, informe_pdf, viz
 
-st.set_page_config(page_title="Cash Flow del proyecto", page_icon="💧", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("💧 Cash flow y costos del proyecto")

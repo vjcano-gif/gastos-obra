@@ -3,7 +3,6 @@ import streamlit as st
 
 from lib import db
 
-st.set_page_config(page_title="Todas las facturas", page_icon="🗂️", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("🗂️ Todas las facturas")

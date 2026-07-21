@@ -13,7 +13,6 @@ ETIQUETAS_ESTADO = {
     "anulada": "Anulada",
 }
 
-st.set_page_config(page_title="Revisión", page_icon="📋", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("📋 Revisión y asignación")

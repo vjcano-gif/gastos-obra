@@ -14,7 +14,6 @@ import streamlit as st
 
 from lib import db, viz
 
-st.set_page_config(page_title="Cuentas por pagar", page_icon="💳", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("💳 Obligaciones y bases del negocio")

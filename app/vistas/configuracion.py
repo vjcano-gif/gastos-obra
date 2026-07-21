@@ -4,7 +4,6 @@ import streamlit as st
 
 from lib import db
 
-st.set_page_config(page_title="Configuración", page_icon="⚙️", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("⚙️ Configuración")

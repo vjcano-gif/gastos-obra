@@ -4,7 +4,6 @@ import streamlit as st
 
 from lib import db, viz
 
-st.set_page_config(page_title="Dashboard", page_icon="📈", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("📈 Gastos vs ingresos por proyecto")

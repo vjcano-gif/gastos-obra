@@ -1,3 +1,11 @@
+"""Punto de entrada y navegación de la app.
+
+Usa st.navigation para agrupar los módulos por lo que hace el usuario
+(Registro, Reportes, Tesorería, Administración) en vez de una lista plana, y
+para esconder lo que un rol no debería ver (Usuarios solo el dueño; el cliente
+solo su obra). Cada vista vive en app/vistas/ y NO llama a set_page_config:
+esta pantalla lo hace una sola vez para toda la app.
+"""
 import streamlit as st
 
 from lib import db
@@ -8,45 +16,47 @@ sb, uid = db.requiere_sesion()
 db.sembrar_si_vacio(sb, uid)
 db.sembrar_capitulos_si_vacio(sb, uid)
 
-st.title("🏗️ Control de gastos e ingresos por proyecto")
+rol = db.mi_rol(sb, uid)
 
-fx = db.facturas(sb, uid)
-pr = db.proyectos(sb, uid)
 
-c1, c2, c3, c4 = st.columns(4)
-if fx.empty:
-    st.info(
-        "Aún no hay documentos. El barrido del buzón corre cada 6 horas; "
-        "también puedes registrar movimientos manuales en **Revisión**."
-    )
+def _p(archivo, titulo, icono, default=False):
+    return st.Page(f"vistas/{archivo}", title=titulo, icon=icono, default=default)
+
+
+inicio = _p("inicio.py", "Inicio", "🏠", default=True)
+manual = _p("manual.py", "Manual de usuario", "❓")
+
+if rol == "cliente":
+    # El cliente solo ve su obra y la ayuda; el resto lo bloquea RLS de todos modos.
+    navegacion = {
+        "": [inicio],
+        "Mi obra": [_p("cash_flow_proyecto.py", "Cash Flow del proyecto", "💧")],
+        "Ayuda": [manual],
+    }
 else:
-    gastos = fx[fx["sentido"] == "gasto"]["monto_efectivo"].sum()
-    # Ingresos = abonos del cliente (anticipos) + ingresos registrados como factura.
-    anticipos_all = db.anticipos(sb, uid)
-    ingresos = fx[fx["sentido"] == "ingreso"]["monto_efectivo"].sum() + (
-        float(anticipos_all["valor"].sum()) if not anticipos_all.empty else 0.0
-    )
-    pendientes = fx[(fx["sentido"] == "gasto") & (~fx["estado"].isin(["pagada", "anulada"]))]
-    c1.metric("Gastos acumulados", db.cop(gastos))
-    c2.metric("Ingresos acumulados", db.cop(ingresos))
-    c3.metric("Por pagar", db.cop(pendientes["monto_efectivo"].sum()))
-    c4.metric("Proyectos activos", int((pr["estado"] == "activo").sum()) if not pr.empty else 0)
+    administracion = [_p("configuracion.py", "Configuración", "⚙️")]
+    if db.es_dueno(uid):
+        administracion.append(_p("usuarios.py", "Usuarios", "👥"))
+    navegacion = {
+        "": [inicio],
+        "Registro": [
+            _p("revision.py", "Revisión", "📋"),
+            _p("todas_las_facturas.py", "Todas las facturas", "🗂️"),
+            _p("ingresos.py", "Ingresos", "💵"),
+            _p("importar_matriz.py", "Importar matriz", "📥"),
+        ],
+        "Reportes": [
+            _p("dashboard.py", "Dashboard", "📈"),
+            _p("cash_flow_proyecto.py", "Cash Flow del proyecto", "💧"),
+            _p("flujo_semanal.py", "Flujo semanal", "🗓️"),
+            _p("compromisos.py", "Compromisos futuros", "📆"),
+        ],
+        "Tesorería": [
+            _p("cuentas_por_pagar.py", "Cuentas por pagar", "💳"),
+            _p("estado_de_cuenta.py", "Estado de cuenta", "✉️"),
+        ],
+        "Administración": administracion,
+        "Ayuda": [manual],
+    }
 
-    sin_revisar = int((fx["estado"] == "extraida").sum())
-    if sin_revisar:
-        st.warning(f"📋 Hay **{sin_revisar}** documentos esperando revisión y asignación de proyecto.")
-
-st.markdown(
-    """
-**Rutas rápidas**
-- 📋 **Revisión** — asignar proyecto, capítulo/actividad y método de pago a lo que llegó.
-- 🗂️ **Todas las facturas** — ver y corregir el universo completo, con filtros y segmentador de fechas.
-- 📈 **Dashboard** — gastos vs ingresos por mes, con segmentador por proyecto.
-- 💵 **Ingresos** — registrar abonos del cliente (o importar la matriz de ingresos) y ver cumplimiento.
-- 💳 **Cuentas por pagar** — vencimientos, saldos y registro de pagos con comprobante.
-- 📆 **Compromisos futuros** — vencimientos vs ingresos previstos, N meses hacia adelante.
-- ✉️ **Estado de cuenta** — informe del proyecto listo para enviar al cliente.
-- ⚙️ **Configuración** — proyectos, capítulos y actividades, reglas de retención y UVT.
-- 👥 **Usuarios** — invitar o quitar personas del equipo (solo el dueño la ve).
-"""
-)
+st.navigation(navegacion).run()

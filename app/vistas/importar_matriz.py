@@ -24,7 +24,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from worker.importar_matriz import Importador  # noqa: E402
 
-st.set_page_config(page_title="Importar matriz", page_icon="📥", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("📥 Importar la matriz histórica")

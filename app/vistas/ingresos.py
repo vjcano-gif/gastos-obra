@@ -11,7 +11,6 @@ import streamlit as st
 
 from lib import db, importar_ingresos, viz
 
-st.set_page_config(page_title="Ingresos", page_icon="💵", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("💵 Ingresos y cumplimiento del cliente")

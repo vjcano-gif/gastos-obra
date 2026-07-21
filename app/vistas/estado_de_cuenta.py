@@ -7,7 +7,6 @@ import streamlit as st
 
 from lib import db, informe_pdf
 
-st.set_page_config(page_title="Estado de cuenta", page_icon="✉️", layout="wide")
 sb, uid = db.requiere_sesion()
 
 st.title("✉️ Estado de cuenta por proyecto")
