@@ -1,7 +1,20 @@
+import io
+
 import pandas as pd
 import streamlit as st
 
-from lib import db
+from lib import db, plantillas
+
+
+@st.cache_data(show_spinner=False)
+def _a_excel(df: pd.DataFrame) -> bytes:
+    """La matriz filtrada como .xlsx (cacheado por contenido: no se regenera
+    en cada interacción, solo cuando cambian los filtros)."""
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df.to_excel(w, index=False, sheet_name="Facturas")
+    return buf.getvalue()
+
 
 sb, uid = db.requiere_sesion()
 
@@ -163,63 +176,104 @@ if vista.startswith("Matriz"):
         m, f = m[keep].reset_index(drop=True), f[keep].reset_index(drop=True)
 
     pend = int((m["Estado datos"] == "Pendiente por datos").sum())
-    st.caption(
-        f"{len(m)} facturas · **{pend} pendientes por datos** · todas las columnas de la MATRIZ GASTOS. "
-        "Haz clic en una fila para completarla; descarga con el ícono de la esquina."
-    )
-    sel = st.dataframe(
-        m, use_container_width=True, hide_index=True, height=520,
-        on_select="rerun", selection_mode="single-row", key="mtz_tabla",
+    st.caption(f"{len(m)} facturas · **{pend} pendientes por datos** · con los filtros aplicados.")
+    st.download_button(
+        "⬇️ Descargar Excel (todas las columnas, con los filtros aplicados)",
+        data=_a_excel(m), file_name="todas_las_facturas.xlsx", mime=plantillas.MIME_XLSX,
     )
 
-    rows = sel.selection.rows if sel and sel.selection else []
-    if rows:
-        factura = f.iloc[rows[0]]
-        _tot = pd.to_numeric(factura.get("total"), errors="coerce")
-        st.divider()
-        st.subheader(
-            f"✏️ Completar: {factura.get('proveedor_nombre') or 'Sin nombre'} · "
-            f"N.° {factura.get('numero') or 's.n.'} · {db.cop(0 if pd.isna(_tot) else _tot)}"
-        )
-        if not puede:
-            st.caption("🔒 Tu rol no permite editar.")
-        else:
-            docs = db.df(sb.table("documentos").select("*").eq("factura_id", factura["id"]).execute())
-            db.mostrar_documentos(sb, docs)
-            venc0 = pd.to_datetime(factura.get("fecha_vencimiento"), errors="coerce")
-            with st.form("editar_matriz"):
-                e1, e2, e3 = st.columns(3)
-                m_proy = e1.selectbox("Proyecto", list(opciones_pr),
-                                      index=list(opciones_pr).index(nombre_pr.get(factura["proyecto_id"], "— sin proyecto —")))
-                m_cap = e2.selectbox("Capítulo", list(opciones_cap),
-                                     index=list(opciones_cap).index(nombre_cap.get(factura["capitulo_id"], "— sin capítulo —")))
-                m_act = e3.selectbox("Actividad", list(opciones_act),
-                                     index=list(opciones_act).index(nombre_act.get(factura["actividad_id"], "— sin actividad —")))
-                g1, g2, g3 = st.columns(3)
-                m_cor = g1.selectbox("Corte", list(opciones_cor),
-                                     index=list(opciones_cor).index(nombre_cor.get(factura["corte_id"], "— sin corte —")))
-                m_res = g2.selectbox("Residente", list(opciones_res),
-                                     index=list(opciones_res).index(nombre_res.get(factura["residente_id"], "— sin residente —")))
-                m_est = g3.selectbox("Estado", ESTADOS_FACTURA,
-                                     index=db.indice_de(ESTADOS_FACTURA, factura.get("estado")))
-                h1, h2, h3 = st.columns(3)
-                m_forma = h1.selectbox("Forma de pago", db.opciones(db.FORMAS_PAGO),
-                                       format_func=lambda v: db.etiqueta(db.FORMAS_PAGO, v) or "— sin dato —",
-                                       index=db.indice_de(db.opciones(db.FORMAS_PAGO), factura.get("forma_pago")))
-                m_epago = h2.selectbox("Estado de pago", db.opciones(db.ESTADOS_PAGO),
-                                       format_func=lambda v: db.etiqueta(db.ESTADOS_PAGO, v) or "— sin dato —",
-                                       index=db.indice_de(db.opciones(db.ESTADOS_PAGO), factura.get("estado_pago")))
-                m_venc = h3.date_input("Vencimiento", value=(None if pd.isna(venc0) else venc0.date()), key="mtz_venc")
-                if st.form_submit_button("💾 Guardar", use_container_width=True):
-                    sb.table("facturas").update({
-                        "proyecto_id": opciones_pr[m_proy], "capitulo_id": opciones_cap[m_cap],
-                        "actividad_id": opciones_act[m_act], "corte_id": opciones_cor[m_cor],
-                        "residente_id": opciones_res[m_res], "estado": m_est,
-                        "forma_pago": m_forma or None, "estado_pago": m_epago or None,
-                        "fecha_vencimiento": str(m_venc) if m_venc else None,
-                    }).eq("id", factura["id"]).execute()
-                    st.success("Actualizado.")
-                    db.rerun()
+    # Sin permiso de edición: solo lectura de todas las columnas.
+    if not puede:
+        st.dataframe(m, use_container_width=True, hide_index=True, height=520)
+        st.stop()
+
+    # ------------------------------ edición en lote (rol administrador/editor)
+    st.divider()
+    st.subheader("✏️ Editar y guardar (administrador)")
+    st.caption(
+        "Cambia **proyecto** (escoge de la lista), capítulo, actividad, corte, residente, "
+        "estado y forma/estado de pago **directo en la tabla**; luego pulsa Guardar. Las "
+        "columnas grises no se editan. Filtra arriba (p. ej. «Pendiente por datos» + un "
+        "proyecto) para acotar antes de editar."
+    )
+
+    LIMITE = 800
+    if len(f) > LIMITE:
+        st.warning(f"Se editan las primeras {LIMITE} de {len(f)}. Afina los filtros para llegar al resto.")
+    fed = f.head(LIMITE).reset_index(drop=True)
+    med = m.head(LIMITE).reset_index(drop=True)
+
+    forma_rev = {v: k for k, v in db.FORMAS_PAGO.items()}
+    estp_rev = {v: k for k, v in db.ESTADOS_PAGO.items()}
+    estado_opts = ESTADOS_FACTURA + sorted(set(fed["estado"].dropna().astype(str)) - set(ESTADOS_FACTURA))
+
+    ed = pd.DataFrame({
+        "Estado datos": med["Estado datos"], "Faltan": med["Faltan"],
+        "Proveedor": fed["proveedor_nombre"], "N.°": fed["numero"],
+        "Fecha": pd.to_datetime(fed["fecha_emision"], errors="coerce").dt.date,
+        "Total": med["SUBTOTAL"], "Saldo": med["Saldo"],
+        "Proyecto": fed["proyecto_id"].map(lambda i: nombre_pr.get(i, "— sin proyecto —")),
+        "Capítulo": fed["capitulo_id"].map(lambda i: nombre_cap.get(i, "— sin capítulo —")),
+        "Actividad": fed["actividad_id"].map(lambda i: nombre_act.get(i, "— sin actividad —")),
+        "Corte": fed["corte_id"].map(lambda i: nombre_cor.get(i, "— sin corte —")),
+        "Residente": fed["residente_id"].map(lambda i: nombre_res.get(i, "— sin residente —")),
+        "Estado": fed["estado"].fillna("").astype(str),
+        "Forma pago": (fed["forma_pago"].map(lambda s: db.FORMAS_PAGO.get(str(s), "")) if "forma_pago" in fed else ""),
+        "Estado pago": (fed["estado_pago"].map(lambda s: db.ESTADOS_PAGO.get(str(s), "")) if "estado_pago" in fed else ""),
+        "Vencimiento": (pd.to_datetime(fed["fecha_vencimiento"], errors="coerce").dt.date if "fecha_vencimiento" in fed else None),
+    })
+    ed.index = fed["id"].values
+
+    cfg = {
+        "Proyecto": st.column_config.SelectboxColumn(options=list(opciones_pr), required=True),
+        "Capítulo": st.column_config.SelectboxColumn(options=list(opciones_cap), required=True),
+        "Actividad": st.column_config.SelectboxColumn(options=list(opciones_act), required=True),
+        "Corte": st.column_config.SelectboxColumn(options=list(opciones_cor), required=True),
+        "Residente": st.column_config.SelectboxColumn(options=list(opciones_res), required=True),
+        "Estado": st.column_config.SelectboxColumn(options=estado_opts, required=True),
+        "Forma pago": st.column_config.SelectboxColumn(options=[""] + list(db.FORMAS_PAGO.values())),
+        "Estado pago": st.column_config.SelectboxColumn(options=[""] + list(db.ESTADOS_PAGO.values())),
+        "Vencimiento": st.column_config.DateColumn(format="YYYY-MM-DD"),
+        "Total": st.column_config.NumberColumn(format="$ %d"),
+        "Saldo": st.column_config.NumberColumn(format="$ %d"),
+    }
+    editado = st.data_editor(
+        ed, column_config=cfg,
+        disabled=["Estado datos", "Faltan", "Proveedor", "N.°", "Fecha", "Total", "Saldo"],
+        hide_index=True, use_container_width=True, height=520, key="mtz_editor",
+    )
+
+    if st.button("💾 Guardar cambios", type="primary", use_container_width=True):
+        n = 0
+        for fid in editado.index:
+            a, b = ed.loc[fid], editado.loc[fid]
+            upd = {}
+            if b["Proyecto"] != a["Proyecto"]:
+                upd["proyecto_id"] = opciones_pr[b["Proyecto"]]
+            if b["Capítulo"] != a["Capítulo"]:
+                upd["capitulo_id"] = opciones_cap[b["Capítulo"]]
+            if b["Actividad"] != a["Actividad"]:
+                upd["actividad_id"] = opciones_act[b["Actividad"]]
+            if b["Corte"] != a["Corte"]:
+                upd["corte_id"] = opciones_cor[b["Corte"]]
+            if b["Residente"] != a["Residente"]:
+                upd["residente_id"] = opciones_res[b["Residente"]]
+            if b["Estado"] != a["Estado"]:
+                upd["estado"] = b["Estado"]
+            if b["Forma pago"] != a["Forma pago"]:
+                upd["forma_pago"] = forma_rev.get(b["Forma pago"])
+            if b["Estado pago"] != a["Estado pago"]:
+                upd["estado_pago"] = estp_rev.get(b["Estado pago"])
+            va, vb = b["Vencimiento"], a["Vencimiento"]
+            if not (pd.isna(va) and pd.isna(vb)) and va != vb:
+                upd["fecha_vencimiento"] = None if pd.isna(va) else str(va)
+            if upd:
+                sb.table("facturas").update(upd).eq("id", fid).execute()
+                n += 1
+        db.limpiar_cache()
+        st.success(f"{n} facturas actualizadas." if n else "No hubo cambios que guardar.")
+        if n:
+            db.rerun()
     st.stop()
 
 # ---------------------------------------------------------- una fila por articulo
@@ -266,6 +320,11 @@ columnas_tabla = [
     "fecha_emision", "numero", "proveedor_nombre", "descripcion", "cantidad", "valor",
     "sentido", "estado", "proyecto", "capitulo", "actividad", "residente",
 ]
+st.download_button(
+    "⬇️ Descargar Excel (artículos filtrados)",
+    data=_a_excel(detalle[columnas_tabla]), file_name="facturas_por_articulo.xlsx",
+    mime=plantillas.MIME_XLSX,
+)
 seleccion = st.dataframe(
     detalle[columnas_tabla],
     use_container_width=True,
