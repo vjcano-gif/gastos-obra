@@ -131,12 +131,23 @@ if vista.startswith("Matriz"):
     liquidada = estp.eq("pagada") | est.isin(["pagada", "anulada"])
     saldo = (total_pagar - pagado).clip(lower=0).where(~liquidada, 0)
 
-    # --- Estado de datos: qué campos clave faltan (solo aplica a gastos)
+    # --- Estado de datos: qué campos clave faltan (solo aplica a gastos).
+    # OJO con "SIN IDENTIFICAR": es un capítulo/actividad REAL del catálogo
+    # (código 66 / 66.01) que el importador usa como cajón de sastre cuando la
+    # matriz de origen no traía clasificación. La factura TIENE capitulo_id y
+    # actividad_id —no son null— pero apuntan al comodín, así que en la práctica
+    # sigue SIN clasificar. Se trata igual que un vacío para que no salga
+    # "Completa" cuando en realidad hay que asignarle capítulo/actividad reales.
+    def _sin_clasificar(serie_id, nombres):
+        nom = serie_id.map(nombres).fillna("").astype(str).str.strip().str.upper()
+        return serie_id.isna() | nom.eq("SIN IDENTIFICAR")
+
     es_gasto = f["sentido"].eq("gasto") if "sentido" in f.columns else pd.Series(True, index=f.index)
     es_credito = f["forma_pago"].eq("credito") if "forma_pago" in f.columns else pd.Series(False, index=f.index)
     faltan = pd.DataFrame({
         "proyecto": f["proyecto_id"].isna(),
-        "capítulo": f["capitulo_id"].isna(),
+        "capítulo": _sin_clasificar(f["capitulo_id"], n_cap),
+        "actividad": _sin_clasificar(f["actividad_id"], n_act),
         "forma de pago": vacio("forma_pago"),
         "vencimiento": es_credito & vacio("fecha_vencimiento"),
     })
