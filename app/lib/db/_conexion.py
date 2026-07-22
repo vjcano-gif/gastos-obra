@@ -170,13 +170,25 @@ def requiere_sesion():
     """
     if "sb_session" in st.session_state:
         sb = cliente()
-        sb.auth.set_session(
-            st.session_state["sb_session"]["access_token"],
-            st.session_state["sb_session"]["refresh_token"],
-        )
-        return sb, st.session_state["sb_workspace_id"]
+        try:
+            sb.auth.set_session(
+                st.session_state["sb_session"]["access_token"],
+                st.session_state["sb_session"]["refresh_token"],
+            )
+            return sb, st.session_state["sb_workspace_id"]
+        except Exception:
+            # Sesión vencida o token inválido (el refresh_token caducó): en vez
+            # de tumbar la app con un AuthApiError, se limpia la sesión y se cae
+            # al formulario de login para volver a entrar.
+            for k in ("sb_session", "sb_user_id", "sb_workspace_id", "sb_rol"):
+                st.session_state.pop(k, None)
+            _sesion_expiro = True
+    else:
+        _sesion_expiro = False
 
     st.title("🏗️ Gastos de obra")
+    if _sesion_expiro:
+        st.info("Tu sesión expiró por seguridad. Vuelve a entrar.")
     _puente_restablecer()
 
     with st.form("login"):
