@@ -30,7 +30,8 @@ if fx.empty:
     st.info("No hay documentos todavía.")
     st.stop()
 
-items_all = db.todos_los_items(sb, uid)
+# `items_all` (todos los artículos) solo lo usa la vista "Por artículo"; se carga
+# allá abajo para no traerlo cuando se está en la Matriz (que va por factura).
 
 pr = db.proyectos(sb, uid)
 cap = db.capitulos(sb, uid)
@@ -139,7 +140,11 @@ if vista.startswith("Matriz"):
         "forma de pago": vacio("forma_pago"),
         "vencimiento": es_credito & vacio("fecha_vencimiento"),
     })
-    falta_txt = faltan.apply(lambda r: ", ".join(c for c in faltan.columns if r[c]), axis=1).where(es_gasto, "")
+    # Vectorizado (antes era un apply fila por fila, lento con miles de facturas):
+    # por cada fila, une los nombres de columna cuyo booleano es True.
+    _labels = faltan.columns.to_numpy()
+    falta_txt = pd.Series([", ".join(_labels[fila]) for fila in faltan.to_numpy()],
+                          index=f.index).where(es_gasto, "")
     estado_datos = pd.Series("Completa", index=f.index).mask(es_gasto & faltan.any(axis=1), "Pendiente por datos")
 
     cap_cod_s = f["capitulo_id"].map(n_capcod)
@@ -278,6 +283,7 @@ if vista.startswith("Matriz"):
 
 # ---------------------------------------------------------- una fila por articulo
 # (las opciones opciones_pr/cap/act/res y nombre_* se construyen arriba, compartidas)
+items_all = db.todos_los_items(sb, uid)
 detalle = db.detalle_clasificado(fx, items_all)
 total_original = len(detalle)
 

@@ -20,9 +20,12 @@ rol = db.mi_rol(sb, uid)
 # del dueño. Solo él tiene permiso de escribir esas tablas: si lo intentara un
 # cliente o un editor, `reglas_retencion` está vedada por RLS —el SELECT vuelve
 # vacío y el INSERT es rechazado—, lo que tumbaba la app entera al entrar.
-if db.es_dueno(uid):
+# Se corre UNA sola vez por sesión: antes hacía 2 consultas de red en CADA
+# navegación entre pantallas, y eso se sentía lento.
+if db.es_dueno(uid) and not st.session_state.get("_sembrado"):
     db.sembrar_si_vacio(sb, uid)
     db.sembrar_capitulos_si_vacio(sb, uid)
+    st.session_state["_sembrado"] = True
 
 
 def _p(archivo, titulo, icono, default=False):

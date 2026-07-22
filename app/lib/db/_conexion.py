@@ -169,20 +169,32 @@ def requiere_sesion():
     saber si quien está logueado es el dueño o un invitado.
     """
     if "sb_session" in st.session_state:
-        sb = cliente()
+        # Se REUSA el cliente entre pantallas (crear uno nuevo por rerun costaba
+        # tiempo) y `set_session` con un token vigente solo decodifica el JWT —no
+        # va a la red—. Antes, como no se guardaba el token refrescado, una vez
+        # vencido el access token la app lo refrescaba CONTRA LA RED en CADA
+        # pantalla; ahora se persiste, así que eso pasa una sola vez.
+        sb = st.session_state.get("_sb_cache") or cliente()
         try:
-            sb.auth.set_session(
+            res = sb.auth.set_session(
                 st.session_state["sb_session"]["access_token"],
                 st.session_state["sb_session"]["refresh_token"],
             )
-            return sb, st.session_state["sb_workspace_id"]
         except Exception:
             # Sesión vencida o token inválido (el refresh_token caducó): en vez
             # de tumbar la app con un AuthApiError, se limpia la sesión y se cae
             # al formulario de login para volver a entrar.
-            for k in ("sb_session", "sb_user_id", "sb_workspace_id", "sb_rol"):
+            for k in ("sb_session", "sb_user_id", "sb_workspace_id", "sb_rol", "_sb_cache"):
                 st.session_state.pop(k, None)
             _sesion_expiro = True
+        else:
+            st.session_state["_sb_cache"] = sb
+            if getattr(res, "session", None):
+                st.session_state["sb_session"] = {
+                    "access_token": res.session.access_token,
+                    "refresh_token": res.session.refresh_token,
+                }
+            return sb, st.session_state["sb_workspace_id"]
     else:
         _sesion_expiro = False
 
